@@ -16,7 +16,7 @@ __all__ = ['measurement_rate','output_state']
 def measurement_rate(H_system, 
                      H_system_bath, 
                      input_state, 
-                     qubit=None, 
+                     pointers=None, 
                      meas_oper=None, 
                      meas_mode=None, 
                      noise_rest=0, 
@@ -24,7 +24,7 @@ def measurement_rate(H_system,
                      tol=1e-12
                      ):
     """
-    Routine to calculate the steady-state measurement rate of a single qubit, defined in terms of the SNR as:
+    Routine to calculate the steady-state measurement rate of some number of qubits, defined in terms of the SNR as:
         measurement_rate = lim_t→∞ SNR^2(t)/t.
     This function follows the theory developed in the following paper to describe the system-bath coupling and 
     input-ouput theory:
@@ -47,20 +47,17 @@ def measurement_rate(H_system,
     input-ouput theory for the measurement rate, but knowledge of Γ and ρ_in is insufficient to uniquqly determine the
     system-bath coupling Hsb.
 
-    This function can only accomodate systems of a single qubit. This is not due a technical limiation, but
-    due to ambiguity about how to define the measurement rate for systems of multiple qubits.
-
     ------------------
         Parameters
     ------------------
     H_system : QGoper
-        System Hamiltonian. This is a linear operator on the Hilbert space of the system modes and qubit only.
+        System Hamiltonian. This is a linear operator on the Hilbert space of the system modes and qubit(s) only.
     H_system_bath : QGoper
         System-bath Hamiltonian. This operator acts on the Hilbert space of both the system and bath modes but not the 
-        qubit. The system modes must be first in the tensor product, followed by the bath modes.
+        qubit(s). The system modes must be first in the tensor product, followed by the bath modes.
     input_state : QGstate
         Input state of the system. Must be specified to use input-output relations.
-    qubit : string
+    pointers : string
         The measurement rate is to be calculated between the pointer states for these two elements of the qubit density
         matrix. This is to be passed as string. For a single qubit example, 'g,e' represents the measurement rate 
         between |g> and |e>, and will be the same as 'e,g'. For multiple qubits, multiple measurement rates may be
@@ -87,7 +84,7 @@ def measurement_rate(H_system,
         Output
     --------------
     meas_rate : float or array
-        Measurement rate of the qubit at the given frequency.
+        Measurement rate for the pair(s) of pointer states at the given frequency.
     meas_signal : float or array
         Measurement signal, that is, displacement between pointer states along the quadrature defined by
         the measurement operator.
@@ -105,10 +102,10 @@ def measurement_rate(H_system,
         sys.exit("No qubit(s) coupled to system. Measurement rate cannot be defined.")
 
     # ----------------------------------------------------------------------
-    # Qubit pointer states is specified, solve the corresponding measurement rate
-    elif H_system.isfls and qubit is not None:
-        # Select index for the qubit state
-        qbinary = qubit.replace('e', '1').replace('g', '0')
+    # Qubit pointer states are specified, solve the corresponding measurement rate
+    elif H_system.isfls and pointers is not None:
+        # Select index for the pointer state
+        qbinary = pointers.replace('e', '1').replace('g', '0')
         q_A = int(qbinary.split(',')[0], 2)
         q_B = int(qbinary.split(',')[1], 2)
 
@@ -124,8 +121,8 @@ def measurement_rate(H_system,
                                      noise_rest = noise_rest)
         
     # ----------------------------------------------------------------------
-    # No qubit state is specified, solve for all measurment rates
-    elif H_system.isfls and qubit is None:
+    # No qubit pointer states is specified, solve for all measurment rates
+    elif H_system.isfls and pointers is None:
         row_total = np.prod(H_system.dims_fls[0])
         col_total = np.prod(H_system.dims_fls[1])
 
@@ -171,7 +168,7 @@ def _measurement_rate_solver(pointer_A, pointer_B, meas_oper, meas_mode, noise_r
         Output
     --------------
     meas_rate : float
-        Measurement rate of the qubit at the given frequency.
+        Measurement rate of the pair of pointer stated at the given frequency.
     meas_signal : float
         Measurement signal, that is, displacement between pointer states.
     meas_noise : float
