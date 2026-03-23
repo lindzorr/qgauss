@@ -107,7 +107,9 @@ def backaction_rate_steadystate(LV,
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def _backaction_steadystate_solver(input,tol=1e-12):
+def _backaction_steadystate_solver(input,
+                                   tol=1e-12
+                                  ):
     """
     The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The backaction
     rate is then extracted from dv/dt, defined by
@@ -149,7 +151,9 @@ def _backaction_steadystate_solver(input,tol=1e-12):
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def moment_solver_steadystate(input, tol=1e-12):
+def moment_solver_steadystate(input, 
+                              tol=1e-12
+                             ):
     """
     ------------------
         Parameters
@@ -232,13 +236,15 @@ def moment_solver_steadystate(input, tol=1e-12):
                    dims_cvs = dims)
 
 
-def _trim(input, tol):
+def _trim(input,tol):
     # Remove small real and imaginary terms from arrays
     np.real(input)[np.abs(np.real(input)) < tol] = 0
     np.imag(input)[np.abs(np.imag(input)) < tol] = 0
 
 
-def _is_quantum_nondemolition(input, row, tol):
+def _is_quantum_nondemolition(input, 
+                              row, 
+                              tol):
     """
     # Check that dynamics of CV-component of input QGsuper are Gaussian by ensuring 
     that there is no coupling to other elements of the qubit-density operator.
