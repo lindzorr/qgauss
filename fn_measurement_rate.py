@@ -145,7 +145,12 @@ def measurement_rate(H_system,
     return meas_rate,meas_signal,meas_noise
 
 
-def _measurement_rate_solver(pointer_A, pointer_B, meas_oper, meas_mode, noise_rest):
+def _measurement_rate_solver(pointer_A, 
+                             pointer_B, 
+                             meas_oper, 
+                             meas_mode, 
+                             noise_rest
+                            ):
     """
     Helper function for measurement_rate, from which it takes its parameters, and to which is returns
     the components of the measurement rate.
@@ -202,7 +207,10 @@ def _measurement_rate_solver(pointer_A, pointer_B, meas_oper, meas_mode, noise_r
     return meas_rate,meas_signal,meas_noise
 
 
-def _optimum_measurement_operator(pointer_A, pointer_B, meas_mode=None):
+def _optimum_measurement_operator(pointer_A, 
+                                  pointer_B, 
+                                  meas_mode=None
+                                 ):
     """
     Helper function to calculate the optimal output measurement operator to distinguish between two pointer state. 
     The optimal operator is identified as the one which returns the maximum signal component, and hence, maximizes the
