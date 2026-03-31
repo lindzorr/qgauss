@@ -16,6 +16,7 @@ from a superoperator since the bath is not traced over.
 # Function which takes a qgoper and performs the associated symplectic-affine transformation on a qgstate so we can
 easily generate new qgstates. For continuous variable systems only.
 # Expectation value function which takes a QGstate and a QGoper and returns the expectation value.
+# A function which evolves a QGstate using a provided QGoper (for CVS systems only)
 
 
 
@@ -41,6 +42,7 @@ copy() Create a copy of QGstate
 ptrace() Traces over selected mode indices listed in array. Only computable for purely fls states or cv component of states
 purity() Returns the purity of the state. Only computable for purely fls or cv states
 isdensity Attribute, which answers: is the QGstate a true density operator?
+# Symplectic-affine methods to evolve the state, such as "displace", "rotate", "beamsplitter", "sm_squeeze", "tm_squeeze".
 	
 	
 
