@@ -11,12 +11,8 @@ qubit master equation.
 # Constructing a Lindbladian from the input state and system-bath coupling. Also, see if it is possible at all to
 go from a Lindbladian and input-state to the system-bath coupling for the Heisenberg-Langevin equations, even if
 the solution is not unique.
-# Should the Heisenberg-Langevin equation or input-output relation be there own classes? They are quite different
-from a superoperator since the bath is not traced over.
-# Function which takes a qgoper and performs the associated symplectic-affine transformation on a qgstate so we can
-easily generate new qgstates. For continuous variable systems only.
-# Expectation value function which takes a QGstate and a QGoper and returns the expectation value.
-# A function which evolves a QGstate using a provided QGoper (for CVS systems only)
+# The Heisenberg-Langevin equations should be their own class made of an amalgam of the other three base classes,
+plus some specific other ones like input-output, scattering, convert HLE to Lindblad.
 
 
 
@@ -42,7 +38,12 @@ copy() Create a copy of QGstate
 ptrace() Traces over selected mode indices listed in array. Only computable for purely fls states or cv component of states
 purity() Returns the purity of the state. Only computable for purely fls or cv states
 isdensity Attribute, which answers: is the QGstate a true density operator?
-# Symplectic-affine methods to evolve the state, such as "displace", "rotate", "beamsplitter", "sm_squeeze", "tm_squeeze".
+# Features to add to multiplication
+    - Multiplication of pure FLS states, equivalent to bare matrix multiplication
+    - Multiplication of pure CV states, equivalent to Moyal product between Gaussian Wigner distributions
+# Figure out how to better handle multiplying a CV-only QGstate by negative numbers. Possible workaround is 
+to not use the zeroth-order cumulant, but instead the zeroth-order moment/total mass. This may be a good reason to 
+combine data_0th and data_fls.
 	
 	
 
@@ -84,5 +85,8 @@ call, and are not stored otherwise. Do we really need the is2nd, is1st, is0th pr
 # permute method to reorder fls and cvs modes.
 # Should we automatically symmetrise data_2nd_l and data_2nd_r through commutation relations?
 # See if we can take a set of coefficients from a Wigner PDE and back-generate the superoperator.
-# Implement an .isunitary/.iscoherent property to check if the Lindbladian represents only coherent dynamics.
-
+# Implement iscptp property
+# Possibly combine 2nd and 1st order coefficients into unified structures, maybe something like
+	- data_2nd = [data_2nd_l,data_2nd_m,data_2nd_r]
+	- data_1st = [data_1st_l,data_1st_r]
+Where the correct data could be called using data_2nd(str) where str={'L','M','R'}, for example.

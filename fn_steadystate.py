@@ -1,23 +1,30 @@
 import sys
 import types
 import warnings
+import functools
+
+import typing
 import numbers
+import numpy.typing as npt
+
+import qgauss
 import numpy as np
 from scipy import linalg as la
 
-from .qgsuper import *
-from .qgoper import *
 from .qgstate import *
+from .qgoper import *
+from .qgsuper import *
 from .fn_constructors import *
 
 __all__ = ['backaction_rate_steadystate','moment_solver_steadystate']
 
 
-def backaction_rate_steadystate(LV, 
-                                qubit=None, 
-                                tol=1e-12
+def backaction_rate_steadystate(LV: QGsuper, 
+                                qubit: str=None, 
+                                tol = 1e-12
                                 ):
     """
+    ---- Procedure ----
     Steady-state solver for the backaction rates of a CV system on a qubit, or a CV system coupled to
     a system of qubits. The function will automatically check if the evolution is Gaussian,
     and will raise an error if not. The function will also check if a steady-state exists and will exit
@@ -26,9 +33,7 @@ def backaction_rate_steadystate(LV,
     state need be specified. The function will return the total dephasing and frequency shift, along with 
     the bare, measurement-induced, and parasitic dephasing subcomponents. 
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     LV : QGsuper
         System Lindbladian/Liouvillian. The Liouvillian need not describe the evolution of a true master equation.
     qubit : string
@@ -41,9 +46,7 @@ def backaction_rate_steadystate(LV,
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     ba_total : complex or array
         Steady-state total dephasing and frequency shift.
     ba_bare : complex or array
@@ -74,7 +77,7 @@ def backaction_rate_steadystate(LV,
         qindex = np.prod(LV.dims_fls[0]) - np.prod(LV.dims_fls[0][0])*qcol - qrow - 1
 
         # Check if spin-z Pauli operators are QND-observables, and the dynamics Gaussian
-        if _is_quantum_nondemolition(LV, qindex, tol):
+        if LV.issubqauss(qindex):
             pass
         else:
             sys.exit("Equation of motion for the CV system is not Gaussian. The moment method cannot be used.")
@@ -85,7 +88,7 @@ def backaction_rate_steadystate(LV,
     # No qubit state is specified, solve for all components
     elif LV.isfls and qubit is None:
         # Check if spin-z Pauli operators are QND-oberservables, and the dynamics Gaussian
-        if all([_is_quantum_nondemolition(LV, x, tol) for x in range(0,np.prod(LV.dims_fls[0]))]):
+        if LV.isqauss:
             pass
         else:
             sys.exit("Equation of motion for the CV system is not Gaussian. The moment method cannot be used.")
@@ -107,9 +110,9 @@ def backaction_rate_steadystate(LV,
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def _backaction_steadystate_solver(input,
-                                   tol=1e-12
-                                  ):
+def _backaction_steadystate_solver(input: QGstate,
+                                   tol = 1e-12
+                                   ) -> QGstate:
     """
     The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The backaction
     rate is then extracted from dv/dt, defined by
@@ -123,14 +126,18 @@ def _backaction_steadystate_solver(input,
         meas_ind = mean.D + (1/2)*mean.B.mean
         para = (1/2)*trace[B.cov]
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     input : QGstate
         "State" from which to extract backaction.
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
+    
+    ---- Returns ----
+    ba_total : complex
+    ba_bare : complex
+    ba_meas_ind : complex
+    ba_para : complex
     """
     # Solve the steady-state components of the system evolving under the 'input' QGsuper
     steady_state = moment_solver_steadystate(input,tol)
@@ -151,22 +158,18 @@ def _backaction_steadystate_solver(input,
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def moment_solver_steadystate(input, 
-                              tol=1e-12
-                             ):
+def moment_solver_steadystate(input: QGsuper, 
+                              tol = 1e-12
+                              ) -> QGstate:
     """
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     input : QGsuper
         System Lindbladian/Liouvillian. The Liouvillian need not describe the evolution of a true master equation.
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     output : QGstate
         Steady-state intracavity state associated with the input superoperator.
     """
@@ -236,31 +239,7 @@ def moment_solver_steadystate(input,
                    dims_cvs = dims)
 
 
-def _trim(input,tol):
-    # Remove small real and imaginary terms from arrays
+def _trim(input, tol):
+    """ Remove small real and imaginary terms from arrays. """
     np.real(input)[np.abs(np.real(input)) < tol] = 0
     np.imag(input)[np.abs(np.imag(input)) < tol] = 0
-
-
-def _is_quantum_nondemolition(input, 
-                              row, 
-                              tol):
-    """
-    # Check that dynamics of CV-component of input QGsuper are Gaussian by ensuring 
-    that there is no coupling to other elements of the qubit-density operator.
-    # Todo: This check currently involves scanning across the entirety of row 
-    "q" of the QGsuper data elements to ensure that all except the [q,q] 
-    elements are zero. See if there is a faster way to do this check, or can 
-    it can be removed entirely by ignoring dynamical terms which break this.
-    """
-    rank = np.prod(input.dims_fls[1])
-    if (all([np.any(np.abs(input.data_2nd_l[row,col]) < tol) for col in range(rank) if col != row]) and
-        all([np.any(np.abs(input.data_2nd_r[row,col]) < tol) for col in range(rank) if col != row]) and
-        all([np.any(np.abs(input.data_2nd_m[row,col]) < tol) for col in range(rank) if col != row]) and
-        all([np.any(np.abs(input.data_1st_l[row,col]) < tol) for col in range(rank) if col != row]) and
-        all([np.any(np.abs(input.data_1st_r[row,col]) < tol) for col in range(rank) if col != row]) and
-        all([np.any(np.abs(input.data_0th[row,col]) < tol) for col in range(rank) if col != row])
-    ):
-        return True
-    else:
-        return False

@@ -10,5 +10,6 @@ from .fn_tensor import *
 from .fn_constructors import *
 
 # Import calculation routines
+from .fn_calculations import *
 from .fn_steadystate import *
 from .fn_measurement_rate import *

@@ -1,28 +1,43 @@
+import sys
 import types
 import warnings
+import functools
+
+import typing
 import numbers
+import numpy.typing as npt
+
+import qgauss
 import numpy as np
 
-from .qgoper import *
 from .qgstate import *
+from .qgoper import *
 
 __all__ = ['tensor']
 
-"""
-Function handling tensor operation between states (QGstate) or operators (QGoper). Tensor operation for superoperators
-(QGsuper) is currently not implemented. Both classes can call the tensor operation using the class method "and" (&).
-Due to the fact that continuous-variable system (CVS) and finite-level system (FLS) components are handled differently, 
-there are certain situation where ordering within tensor will not matter, for example:
-    tensor(destroy(),sigmaz()) == tensor(sigmaz(),destroy())
-    tensor(destroy(),create(),sigmaz()) == tensor(destroy(),sigmaz(),create()) == tensor(sigmaz(),destroy(),create())
-However, we of course have:
-    tensor(destroy(),create()) =/= tensor(create(),destroy())
-It is recommended to keep ordering consistent even in cases where the tensor function is agnostic.
-"""
 
-def tensor(*args):
+def tensor(*args) -> QGstate | QGoper:
+    """
+    Function handling tensor operation between states (QGstate) or operators (QGoper). Tensor operation for 
+    superoperators (QGsuper) is currently not implemented. Both classes can call the tensor operation using the class 
+    method "and" (&). Due to the fact that continuous-variable system (CVS) and finite-level system (FLS) components are 
+    handled differently, there are certain situation where ordering within tensor will not matter, for example:
+        tensor(destroy(),sigmaz()) == tensor(sigmaz(),destroy())
+        tensor(destroy(),create(),sigmaz()) == tensor(destroy(),sigmaz(),create()) == tensor(sigmaz(),destroy(),create())
+    However, we of course have:
+        tensor(destroy(),create()) != tensor(create(),destroy())
+    It is recommended to keep ordering consistent even in cases where the tensor function is agnostic.
+
+    ---- Parameters ----
+    args : QGstate's or QGoper's
+        Arbitrary number of QGstates or QGopers to be tensored together, must all be of same type.
+    
+    ---- Returns ----
+    out : QGstate or QGoper
+        QGstate or QGoper made of tensored combinations of args.
+    """
     if not args:
-        raise TypeError("Tensor function requires at least one input argument")
+        raise TypeError("Tensor function requires at least one input argument.")
     elif len(args) == 1 and isinstance(args[0], QGoper | QGstate):
         # If only one argument is provided, return copy
         return args[0]
@@ -39,13 +54,14 @@ def tensor(*args):
         raise TypeError("All operands must be of same type, either QGoper or QGstate.")
 
 
-def _tensor_oper(args):
+def _tensor_oper(args) -> QGoper:
+    """ Private helper function for "tensor" used to tensor QGopers. """
     # Check and raise error if an empty QGoper, one that is not iscv or isfls, is in args
     arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
     arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
 
     if len(set(arg_cvs) & set(arg_fls)) != 0:
-        raise ValueError("Tensor product cannot be performed with empty QGopers")
+        raise ValueError("Tensor product cannot be performed with empty QGopers.")
 
     # Check and raise error if tensor will return an operator which is greater than quadratic in the quadrature basis
     # Three checks are performed:
@@ -60,7 +76,7 @@ def _tensor_oper(args):
         (len(arg_2nd) == 1 and len(arg_1st) >= 1 and len(set(arg_2nd) ^ set(arg_1st)) > 0)
        ):
         raise ValueError("Tensor product of QGopers produces result which is beyond "
-                         +"quadratic order in the quadrature operators")
+                         +"quadratic order in the quadrature operators.")
         
     # Set data from first argument as initial data for output
     # Data from args will be used to update these values, with the QGoper
@@ -215,13 +231,14 @@ def _tensor_oper(args):
                  )
 
 
-def _tensor_state(args):
+def _tensor_state(args) -> QGstate:
+    """ Private helper function for "tensor" used to tensor QGstates. """
     # Check and raise error if an empty QGstate, one that is not iscv or isfls, is in args
     arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
     arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
 
     if len(set(arg_cvs) & set(arg_fls)) != 0:
-        raise ValueError("Tensor product cannot be performed with empty QGstates")
+        raise ValueError("Tensor product cannot be performed with empty QGstates.")
     
     # Set data from first argument as initial data for output
     # Data from args will be used to update these values, with the QGstate

@@ -1,29 +1,36 @@
 import sys
 import types
 import warnings
+import functools
+
+import typing
 import numbers
+import numpy.typing as npt
+
+import qgauss
 import numpy as np
 from scipy import linalg as la
 
-from .qgsuper import *
-from .qgoper import *
 from .qgstate import *
+from .qgoper import *
+from .qgsuper import *
 from .fn_constructors import *
 
 __all__ = ['measurement_rate','output_state']
 
 
-def measurement_rate(H_system, 
-                     H_system_bath, 
-                     input_state, 
-                     pointers=None, 
-                     meas_oper=None, 
-                     meas_mode=None, 
-                     noise_rest=0, 
-                     freq=0, 
-                     tol=1e-12
+def measurement_rate(H_system: QGoper, 
+                     H_system_bath: QGoper, 
+                     input_state: QGstate, 
+                     pointers: str = None, 
+                     meas_oper: QGoper = None, 
+                     meas_mode: int | list[int] = None, 
+                     noise_rest = 0, 
+                     freq = 0, 
+                     tol = 1e-12
                      ):
     """
+    ---- Procedure ----
     Routine to calculate the steady-state measurement rate of some number of qubits, defined in terms of the SNR as:
         measurement_rate = lim_t→∞ SNR^2(t)/t.
     This function follows the theory developed in the following paper to describe the system-bath coupling and 
@@ -47,9 +54,7 @@ def measurement_rate(H_system,
     input-ouput theory for the measurement rate, but knowledge of Γ and ρ_in is insufficient to uniquqly determine the
     system-bath coupling Hsb.
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     H_system : QGoper
         System Hamiltonian. This is a linear operator on the Hilbert space of the system modes and qubit(s) only.
     H_system_bath : QGoper
@@ -80,9 +85,7 @@ def measurement_rate(H_system,
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     meas_rate : float or array
         Measurement rate for the pair(s) of pointer states at the given frequency.
     meas_signal : float or array
@@ -91,7 +94,6 @@ def measurement_rate(H_system,
     meas_noise : float or array
         Measurement noise along with quadrature defined by the measurement operator, not including noise_rest.
     """
-    
     # ----------------------------------------------------------------------
     # System-bath coupling cannot currently handle coupling to any qubits
     if H_system_bath.isfls:
@@ -145,19 +147,17 @@ def measurement_rate(H_system,
     return meas_rate,meas_signal,meas_noise
 
 
-def _measurement_rate_solver(pointer_A, 
-                             pointer_B, 
-                             meas_oper, 
-                             meas_mode, 
-                             noise_rest
-                            ):
+def _measurement_rate_solver(pointer_A: QGstate, 
+                             pointer_B: QGstate, 
+                             meas_oper: QGoper, 
+                             meas_mode: int | list[int], 
+                             noise_rest = 0
+                             ):
     """
-    Helper function for measurement_rate, from which it takes its parameters, and to which is returns
+    Private helper function for measurement_rate, from which it takes its parameters, and to which is returns
     the components of the measurement rate.
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     pointer_A : QGstate
         Outout pointer state A, CVS only.
     pointer_B : QGstate
@@ -169,9 +169,7 @@ def _measurement_rate_solver(pointer_A,
     noise_rest : float
         Added noise from downstream components, default is zero.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     meas_rate : float
         Measurement rate of the pair of pointer stated at the given frequency.
     meas_signal : float
@@ -207,19 +205,17 @@ def _measurement_rate_solver(pointer_A,
     return meas_rate,meas_signal,meas_noise
 
 
-def _optimum_measurement_operator(pointer_A, 
-                                  pointer_B, 
-                                  meas_mode=None
-                                 ):
+def _optimum_measurement_operator(pointer_A: QGstate, 
+                                  pointer_B: QGstate, 
+                                  meas_mode: int | list[int] = None
+                                  )-> QGoper:
     """
-    Helper function to calculate the optimal output measurement operator to distinguish between two pointer state. 
-    The optimal operator is identified as the one which returns the maximum signal component, and hence, maximizes the
-    separation between the two pointer state. In the case of amplified noise, this may not always give the optimal
-    measurement rate.
+    Private helper function to calculate the optimal output measurement operator to distinguish between two pointer 
+    state. The optimal operator is identified as the one which returns the maximum signal component, and hence, 
+    maximizes the separation between the two pointer state. In the case of amplified noise, this may not always give 
+    the optimal measurement rate.
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     pointer_A : QGstate
         Outout pointer state A, CVS only.
     pointer_B : QGstate
@@ -227,12 +223,9 @@ def _optimum_measurement_operator(pointer_A,
     meas_mode : int or list(int)
         Output modes that are monitored during the measurement. To be used in case no meas_oper is specified.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     meas_oper : QGoper
         Linear measurement operator which maximizes the measurement signal.
-
     """
     dims_bath = pointer_A.dims_cvs
     # IF no measurement mode(s) provided, assume all bath modes are monitored.
@@ -258,19 +251,17 @@ def _optimum_measurement_operator(pointer_A,
     return meas_oper
 
 
-def output_state(H_system, 
-                 H_system_bath, 
-                 input_state, 
-                 freq=0, 
-                 tol=1e-12
-                 ):
+def output_state(H_system: QGoper, 
+                 H_system_bath: QGoper, 
+                 input_state: QGstate, 
+                 freq = 0, 
+                 tol = 1e-12
+                 ) -> QGstate:
     """
     Routine to calculate the output state of the bath in frequency space. Follows the quantum input-ouput theory of
     Gardiner & Collett.
 
-    ------------------
-        Parameters
-    ------------------
+    ---- Parameters ----
     H_system : QGoper
         System Hamiltonian. This is a linear operator on the Hilbert space of the system modes and qubit only.
     H_system_bath : QGoper
@@ -284,13 +275,10 @@ def output_state(H_system,
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
 
-    --------------
-        Output
-    --------------
+    ---- Returns ----
     output_state : QGstate
         Output state at specified frequency. Note, displacement may be complex-valued, and hence this may not 
         correspond to a real state.
-
     """
     # Set dimensions of the system (dims_sys), and the number of environments (dims_bath)
     dims_sys = H_system.dims_cvs
@@ -320,6 +308,6 @@ def output_state(H_system,
 
 
 def _trim(input,tol):
-    # Remove small real and imaginary terms from arrays
+    """ Remove small real and imaginary terms from arrays. """
     np.real(input)[np.abs(np.real(input)) < tol] = 0
     np.imag(input)[np.abs(np.imag(input)) < tol] = 0

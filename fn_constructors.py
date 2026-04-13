@@ -1,6 +1,13 @@
+import sys
 import types
 import warnings
+import functools
+
+import typing
 import numbers
+import numpy.typing as npt
+
+import qgauss
 import numpy as np
 
 from .qgstate import *
@@ -18,22 +25,21 @@ __all__ = ['symplectic_form',
            'dissipator','coherent','lindbladian','symplectic_form'
           ]
 
-"""
-This is the current home for constructors used to create often used states, operators, and superoperators.
-"""
+""" This is the current home for constructors used to create often used states, operators, and superoperators. """
 
-def symplectic_form(N=1):
+def symplectic_form(N=1) -> np.ndarray:
     # 2N-by-2N anti-symmetric matrix called the symplectic form
     return np.kron(np.identity(N),np.array([[0,1],[-1,0]]))
 
+# ----------------------------------------------------------------------
 # Constructors for states
 
-def vacuum(N=1):
+def vacuum(N=1) -> QGstate:
     # N-mode vacuum state
     return QGstate(data_2nd = 0.5*np.identity(2*N), 
                    dims_cvs = N)
 
-def thermal(*nth):
+def thermal(*nth) -> QGstate:
     # N-mode thermal state, with occupancies "nth"
     if not nth:
         nth = 0
@@ -44,7 +50,7 @@ def thermal(*nth):
     return QGstate(data_2nd = np.kron(np.diag(nth)+0.5*np.identity(len(nth)),np.identity(2)), 
                    dims_cvs = len(nth))
 
-def displaced(alpha=None):
+def displaced(alpha=None) -> QGstate:
     # Single mode coherent/displaced vacuum state
     if alpha is None:
         q, p = 0, 0
@@ -56,7 +62,7 @@ def displaced(alpha=None):
                    data_1st = np.array([q,p]),
                    dims_cvs = 1)
 
-def sm_squeeze(sqz=None):
+def sm_squeeze(sqz=None) -> QGstate:
     # Single-mode squeezed state
     if sqz is None:
         r, t = 0, 0
@@ -68,7 +74,7 @@ def sm_squeeze(sqz=None):
                                             [-np.sin(t)*np.sinh(2*r), np.cosh(2*r) - np.cos(t)*np.sinh(2*r)]]),
                    dims_cvs = 1)
 
-def tm_squeeze(sqz=None):
+def tm_squeeze(sqz=None) -> QGstate:
     # Two-mode squeezed state
     if sqz is None:
         r, t = 0, 0
@@ -82,60 +88,61 @@ def tm_squeeze(sqz=None):
                                             [-np.sin(t)*np.sinh(2*r), +np.cos(t)*np.sinh(2*r), 0, np.cosh(2*r)]]),
                    dims_cvs = 2)
 
-def qubit_excited():
+def qubit_excited() -> QGstate:
     # Density matrix for excited qubit state
     return QGstate(data_0th = np.array([[1,0],[0,0]]),
                    dims_fls = [[2],[2]])
 
-def qubit_ground():
+def qubit_ground() -> QGstate:
     # Density matrix for ground qubit state
     return QGstate(data_0th = np.array([[0,0],[0,1]]),
                    dims_fls = [[2],[2]])
 
+# ----------------------------------------------------------------------
 # Constructors for operators
 
-def one():
+def one() -> QGoper:
     # Simple "identity" operator for single continuous-variable system
     return QGoper(data_0th = np.array([1.]), 
                   dims_cvs = 1)
 
-def identity(N=1):
+def identity(N=1) -> QGoper:
     # Identity operator for N-mode continuous-variable system
     return QGoper(data_0th = np.array([1.]), 
                   dims_cvs = N)
 
-def identity_cvs(N=1):
+def identity_cvs(N=1) -> QGoper:
     # Alias of identity_cvs
     return QGoper(data_0th = np.array([1.]), 
                   dims_cvs = N)
 
-def destroy():
+def destroy() -> QGoper:
     # Single mode annihilation operator
     return QGoper(data_1st = np.array([1,1j])/np.sqrt(2), 
                   dims_cvs = 1)
 
-def create():
+def create() -> QGoper:
     # Single mode creation operator
     return QGoper(data_1st = np.array([1,-1j])/np.sqrt(2), 
                   dims_cvs = 1)
 
-def position():
+def position() -> QGoper:
     # Single mode position operator
     return QGoper(data_1st = np.array([1,0]), 
                   dims_cvs = 1)
     
-def momentum():
+def momentum() -> QGoper:
     # Single mode momentum operator
     return QGoper(data_1st = np.array([0,1]), 
                   dims_cvs = 1)
 
-def num():
+def num() -> QGoper:
     # Single mode number operator
     return QGoper(data_2nd = np.array([[1,0],[0,1]]), 
                   data_0th = -1/2, 
                   dims_cvs = 1)
 
-def identity_fls(dims=1):
+def identity_fls(dims=1) -> QGoper:
     # N-by-N identity operator for a finite-level system, where N may an integer or list of integers
     if isinstance(dims, (np.ndarray, list)):
         return QGoper(data_0th = np.identity(np.sum(dims)), 
@@ -144,57 +151,56 @@ def identity_fls(dims=1):
         return QGoper(data_0th = np.identity(dims), 
                       dims_fls = [[dims],[dims]])
 
-
-def qeye(N=1):
+def qeye(N=1) -> QGoper:
     # N-by-N identity operator for a finite-level system
     return QGoper(data_0th = np.identity(N), 
                   dims_fls = [[N],[N]])
 
-def qzero(N=1):
+def qzero(N=1) -> QGoper:
     # N-by-N null operator for a finite-level system
     return QGoper(data_0th = np.zeros(N), 
                   dims_fls = [[N],[N]])
     
-def sigmam():
+def sigmam() -> QGoper:
     # Lowering operator for a TLS/qubit
     return QGoper(data_0th = np.array([[0,0],[1,0]]), 
                   dims_fls = [[2],[2]])
 
-def sigmap():
+def sigmap() -> QGoper:
     # Raising operator for a TLS/qubit
     return QGoper(data_0th = np.array([[0,1],[0,0]]), 
                   dims_fls = [[2],[2]])
 
-def sigmax():
+def sigmax() -> QGoper:
     # Pauli x-operator
     return QGoper(data_0th = np.array([[0,1],[1,0]]), 
                   dims_fls = [[2],[2]])
 
-def sigmay():
+def sigmay() -> QGoper:
     # Pauli y-operator
     return QGoper(data_0th = np.array([[0,-1j],[1j,0]]), 
                   dims_fls = [[2],[2]])
 
-def sigmaz():
+def sigmaz() -> QGoper:
     # Pauli z-operator
     return QGoper(data_0th = np.array([[1,0],[0,-1]]), 
                   dims_fls = [[2],[2]])
 
-
+# ----------------------------------------------------------------------
 # Constructors for superoperators
 
-def dissipator(a, b=None):
+def dissipator(a: QGoper, b: QGoper=None) -> QGsuper:
     if b is None:
         b = a
     return sprepost(a,b.dag()) - 0.5*spre(b.dag()*a) - 0.5*spost(b.dag()*a)
 
-def anticommutator(H):
+def anticommutator(H: QGoper) -> QGsuper:
     return (spre(H) + spost(H))
 
-def coherent(H):
+def coherent(H: QGoper) -> QGsuper:
     return -1.0j*(spre(H) - spost(H))
 
-def lindbladian(H=None, c_ops=[]):
+def lindbladian(H: QGoper=None, c_ops: list[QGoper]=[]) -> QGsuper:
     if H is not None:
         L = -1.0j*(spre(H) - spost(H))
     else:
@@ -203,30 +209,27 @@ def lindbladian(H=None, c_ops=[]):
     L += sum([sprepost(c,c.dag()) - 0.5 * spre(c.dag()*c) - 0.5 * spost(c.dag()*c) for c in c_ops])
     return L
 
-def spost(A):
+def spost(A: QGoper) -> QGsuper:
     # Superoperator representing post/right-multiplication of state by an operator
-    if not isinstance(A, QGoper):
-        raise TypeError("Input is not of type: QGoper")
-    
     if A.isfls:
         return QGsuper(data_2nd_r = np.einsum('jpkqyz,plqm->kljmyz',
-                                                A.data_2nd[:,np.newaxis,:,np.newaxis,:,:],
-                                                np.identity(np.prod(A.dims_fls[0]))[np.newaxis,:,np.newaxis,:]
-                                               ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                         np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                         2*A.dims_cvs,
-                                                         2*A.dims_cvs),
+                                              A.data_2nd[:,np.newaxis,:,np.newaxis,:,:],
+                                              np.identity(np.prod(A.dims_fls[0]))[np.newaxis,:,np.newaxis,:]
+                                              ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        2*A.dims_cvs,
+                                                        2*A.dims_cvs),
                        data_1st_r = np.einsum('jpkqz,plqm->kljmz',
                                               A.data_1st[:,np.newaxis,:,np.newaxis,:],
                                               np.identity(np.prod(A.dims_fls[0]))[np.newaxis,:,np.newaxis,:]
-                                             ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       2*A.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        2*A.dims_cvs),
                        data_0th = np.einsum('jpkq,plqm->kljm',
                                             A.data_0th[:,np.newaxis,:,np.newaxis],
                                             np.identity(np.prod(A.dims_fls[0]))[np.newaxis,:,np.newaxis,:]
-                                           ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                     np.prod((A.dims_fls[0], A.dims_fls[1]))),
+                                            ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                      np.prod((A.dims_fls[0], A.dims_fls[1]))),
                        dims_cvs = A.dims_cvs,
                        dims_fls = [[A.dims_fls[0], A.dims_fls[1]],
                                    [A.dims_fls[0], A.dims_fls[1]]])
@@ -237,30 +240,27 @@ def spost(A):
                        data_0th = A.data_0th,
                        dims_cvs = A.dims_cvs)
 
-def spre(A):
+def spre(A: QGoper) -> QGsuper:
     # Superoperator representing pre/left-multiplication of state by an operator
-    if not isinstance(A, QGoper):
-        raise TypeError("Input is not of type: QGoper")
-    
     if A.isfls:
         return QGsuper(data_2nd_l = np.einsum('jpkq,plqmyz->jlkmyz',
                                               np.identity(np.prod(A.dims_fls[1]))[:,np.newaxis,:,np.newaxis],
                                               A.data_2nd[np.newaxis,:,np.newaxis,:,:,:]
-                                             ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       2*A.dims_cvs,
-                                                       2*A.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        2*A.dims_cvs,
+                                                        2*A.dims_cvs),
                        data_1st_l = np.einsum('jpkq,plqmz->jlkmz',
                                               np.identity(np.prod(A.dims_fls[1]))[:,np.newaxis,:,np.newaxis],
                                               A.data_1st[np.newaxis,:,np.newaxis,:,:]
-                                             ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                       2*A.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                        2*A.dims_cvs),
                        data_0th = np.einsum('jpkq,plqm->jlkm',
                                             np.identity(np.prod(A.dims_fls[1]))[:,np.newaxis,:,np.newaxis],
                                             A.data_0th[np.newaxis,:,np.newaxis,:]
-                                           ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
-                                                     np.prod((A.dims_fls[0], A.dims_fls[1]))),
+                                            ).reshape(np.prod((A.dims_fls[0], A.dims_fls[1])),
+                                                      np.prod((A.dims_fls[0], A.dims_fls[1]))),
                        dims_cvs = A.dims_cvs,
                        dims_fls = [[A.dims_fls[0], A.dims_fls[1]],
                                    [A.dims_fls[0], A.dims_fls[1]]])
@@ -271,11 +271,8 @@ def spre(A):
                        data_0th = A.data_0th,
                        dims_cvs = A.dims_cvs)
 
-def sprepost(A, B):
+def sprepost(A: QGoper, B: QGoper) -> QGsuper:
     # Superoperator representing pre/left and post-right-multiplication of state by an operator
-    if not (isinstance(A, QGoper) or isinstance(B, QGoper)):
-        raise TypeError("Input is not of type: QGoper")
-
     if (A.dims_cvs != B.dims_cvs) and (A.dims_fls != B.dims_fls).all():
         raise ValueError("Inputs do not have identical dimensions")
 
@@ -289,41 +286,41 @@ def sprepost(A, B):
         return QGsuper(data_2nd_l = np.einsum('jpkq,plqmyz->kljmyz',
                                               B.data_0th[:,np.newaxis,:,np.newaxis],
                                               A.data_2nd[np.newaxis,:,np.newaxis,:,:,:]
-                                             ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                       np.prod((A.dims_fls[1], B.dims_fls[0])),
-                                                       2*A.dims_cvs,
-                                                       2*A.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                        np.prod((A.dims_fls[1], B.dims_fls[0])),
+                                                        2*A.dims_cvs,
+                                                        2*A.dims_cvs),
                        data_2nd_r = np.einsum('jpkqyz,plqm->kljmyz',
                                               B.data_2nd[:,np.newaxis,:,np.newaxis,:,:],
                                               A.data_0th[np.newaxis,:,np.newaxis,:]
-                                             ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                       np.prod((A.dims_fls[1], B.dims_fls[0])),
-                                                       2*B.dims_cvs,
-                                                       2*B.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                        np.prod((A.dims_fls[1], B.dims_fls[0])),
+                                                        2*B.dims_cvs,
+                                                        2*B.dims_cvs),
                        data_2nd_m = np.einsum('jpkqz,plqmy->kljmyz',
                                               B.data_1st[:,np.newaxis,:,np.newaxis,:],
                                               A.data_1st[np.newaxis,:,np.newaxis,:,:]
-                                             ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                       np.prod((A.dims_fls[1], B.dims_fls[0])),
-                                                       2*A.dims_cvs,
-                                                       2*B.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                        np.prod((A.dims_fls[1], B.dims_fls[0])),
+                                                        2*A.dims_cvs,
+                                                        2*B.dims_cvs),
                        data_1st_l = np.einsum('jpkq,plqmz->kljmz',
                                               B.data_0th[:,np.newaxis,:,np.newaxis],
                                               A.data_1st[np.newaxis,:,np.newaxis,:,:]
-                                             ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                       np.prod((A.dims_fls[1], B.dims_fls[0])),
-                                                       2*A.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                        np.prod((A.dims_fls[1], B.dims_fls[0])),
+                                                        2*A.dims_cvs),
                        data_1st_r = np.einsum('jpkqz,plqm->kljmz',
                                               B.data_1st[:,np.newaxis,:,np.newaxis,:],
                                               A.data_0th[np.newaxis,:,np.newaxis,:]
-                                             ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                       np.prod((A.dims_fls[1], B.dims_fls[0])),
-                                                       2*B.dims_cvs),
+                                              ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                        np.prod((A.dims_fls[1], B.dims_fls[0])),
+                                                        2*B.dims_cvs),
                        data_0th = np.einsum('jpkq,plqm->kljm',
                                             B.data_0th[:,np.newaxis,:,np.newaxis],
                                             A.data_0th[np.newaxis,:,np.newaxis,:]
-                                           ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
-                                                     np.prod((A.dims_fls[1], B.dims_fls[0]))),
+                                            ).reshape(np.prod((A.dims_fls[0], B.dims_fls[1])),
+                                                      np.prod((A.dims_fls[1], B.dims_fls[0]))),
                        dims_cvs = A.dims_cvs,
                        dims_fls = [[A.dims_fls[0], B.dims_fls[1]],
                                    [A.dims_fls[1], B.dims_fls[0]]])

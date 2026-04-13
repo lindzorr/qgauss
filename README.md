@@ -1,4 +1,4 @@
-<h1>QGauss: Calculations for hybrid quantum systems</h1>
+<h1>QGauss: Calculations for quantum Gaussian systems</h1>
 
 The qgauss module allows for the efficient simulation of hybrid quantum systems composed of a mix of continuous-variables systems and finite-level systems, where the state of the continuous variable systems are said to be Gaussian. The Numpy and Scipy packages are necessary for this module to function. The syntax for functions and class methods in this project are chosen to match those of QuTiP as much as possible. The ease of use and flexibility of QuTiP was also the inspiration for this project.
 
