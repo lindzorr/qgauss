@@ -546,7 +546,7 @@ class QGoper(object):
             return QGoper(inpt=self)
         elif n == 2 and not self.is2nd:
             return self.__mul__(self)
-        elif n >= 3 and not self.is1st:
+        elif n >= 3 and not self.is2nd and not self.is1st:
             return QGoper(data_0th = np.linalg.matrix_power(self.data_0th, n),
                           dims_cvs = self.dims_cvs, 
                           dims_fls = self.dims_fls)
