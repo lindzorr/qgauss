@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import types
+import sys
 import warnings
-import functools
+
+import types
 import typing
 import numbers
 import numpy.typing as npt
+
 import qgauss
 import numpy as np
 
@@ -104,9 +106,9 @@ class QGstate(object):
         Returns sum/difference of two QGstates. Intended for creating superposition states, not actual addition.
     neg : QGstate -> QGstate
         Returns negative of QGstate.
-    mult : (QGstate, number) -> QGstate
+    mult : (QGstate, complex) -> QGstate
         Multiplication of QGoper by a scaler.
-    div : (QGstate, number) -> QGstate
+    div : (QGstate, complex) -> QGstate
         Division of QGstate by a scaler.
     eq : (QGstate, QGstate) -> bool
         Check equality of two QGstates.
@@ -134,12 +136,12 @@ class QGstate(object):
     
     ### Quantum-Gaussian State (QGstate) Initialisation ###
     def __init__(self,
-                 inpt = None,
-                 data_2nd = None,
-                 data_1st = None,
-                 data_0th = None,
-                 dims_cvs = None,
-                 dims_fls = None
+                 inpt: QGstate = None,
+                 data_2nd: npt.ArrayLike = None,
+                 data_1st: npt.ArrayLike = None,
+                 data_0th: npt.ArrayLike | complex = None,
+                 dims_cvs: int = None,
+                 dims_fls: list[list[int]] = None
                 ): 
         
         # QGstate as inpt, copy data
@@ -166,6 +168,9 @@ class QGstate(object):
             self.data_1st = data_1st
             self.data_2nd = data_2nd
 
+            if qgauss.settings.auto_tidyup == True: 
+                self.tidyup()
+                
         else:
             raise TypeError("Input for constructing QGstate is either ill-formatted or of incorrect type.")
 
@@ -256,7 +261,7 @@ class QGstate(object):
             return (1,)
 
     @property
-    def data_2nd(self) -> np.ndarray:
+    def data_2nd(self) -> npt.NDArray:
         return self._data_2nd
     @data_2nd.setter
     def data_2nd(self, data):
@@ -282,7 +287,7 @@ class QGstate(object):
             raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
             
     @property
-    def data_1st(self) -> np.ndarray:
+    def data_1st(self) -> npt.NDArray:
         return self._data_1st
     @data_1st.setter
     def data_1st(self, data):
@@ -306,7 +311,7 @@ class QGstate(object):
             raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
             
     @property
-    def data_0th(self) -> np.ndarray:
+    def data_0th(self) -> npt.NDArray:
         return self._data_0th
     @data_0th.setter
     def data_0th(self, data):
@@ -334,7 +339,7 @@ class QGstate(object):
             return False
      
     @property
-    def symform(self) -> np.ndarray:
+    def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs),np.array([[0,1],[-1,0]]))
     
     '''
@@ -358,9 +363,8 @@ class QGstate(object):
                 other: QGstate
                 ) -> QGstate:
         # Adder for two CV-only QGstates
-        tol = 1e-12
-        if (np.all(np.abs(self.data_2nd - other.data_2nd) < tol) and
-            np.all(np.abs(self.data_1st - other.data_1st) < tol)
+        if (np.all(np.abs(self.data_2nd - other.data_2nd) < qgauss.settings.atol) and
+            np.all(np.abs(self.data_1st - other.data_1st) < qgauss.settings.atol)
             ):
             return QGstate(data_2nd = self.data_2nd,
                            data_1st = self.data_1st,
@@ -368,14 +372,14 @@ class QGstate(object):
                            dims_fls = self.dims_fls,
                            dims_cvs = self.dims_cvs
                            )
-        elif (np.all(np.abs(self.data_2nd) < tol) and
-              np.all(np.abs(self.data_1st) < tol) and
-              np.abs(self.data_0th) < tol
+        elif (np.all(np.abs(self.data_2nd) < qgauss.settings.atol) and
+              np.all(np.abs(self.data_1st) < qgauss.settings.atol) and
+              np.abs(self.data_0th) < qgauss.settings.atol
               ):
             return QGstate(other)
-        elif (np.all(np.abs(other.data_2nd) < tol) and
-              np.all(np.abs(other.data_1st) < tol) and
-              np.abs(other.data_0th) < tol
+        elif (np.all(np.abs(other.data_2nd) < qgauss.settings.atol) and
+              np.all(np.abs(other.data_1st) < qgauss.settings.atol) and
+              np.abs(other.data_0th) < qgauss.settings.atol
               ):
             return QGstate(self)
         else:
@@ -389,7 +393,9 @@ class QGstate(object):
                  for qr in range(np.prod(input.dims_fls[1]))]
     
     @staticmethod
-    def list_to_fls(input: QGstate, dims_fls) -> QGstate:
+    def list_to_fls(input: QGstate, 
+                    dims_fls: list[list[int]]
+                    ) -> QGstate:
         # Convert list of QGstates which are CV systems only to a single QGstate with FLS component
         return QGstate(data_2nd = np.asarray([[input[qr][qc].data_2nd 
                                                for qc in range(np.prod(dims_fls[0]))]
@@ -404,7 +410,7 @@ class QGstate(object):
                         dims_fls = dims_fls
                         )     
       
-    def __add__(self, other) -> QGstate:
+    def __add__(self, other: QGstate) -> QGstate:
         # Addition with self.QGstate on the left
         if isinstance(other, QGstate):
             if ((self.dims_cvs == other.dims_cvs) and 
@@ -430,15 +436,15 @@ class QGstate(object):
             raise TypeError("Cannot perform addition operation between the types QGstate and " 
                             + type(other).__name__ + ".")
             
-    def __radd__(self, other) -> QGstate:
+    def __radd__(self, other: QGstate) -> QGstate:
         # Addition with the self.QGstate on the right
         return self.__add__(other)
         
-    def __sub__(self, other) -> QGstate:
+    def __sub__(self, other: QGstate) -> QGstate:
         # Subtraction with self.QGstate on the left
         return self.__add__(other.__neg__())
     
-    def __rsub__(self, other) -> QGstate:
+    def __rsub__(self, other: QGstate) -> QGstate:
         # Subtraction with self.QGstate on the right
         return other.__add__(self.__neg__())
         
@@ -458,7 +464,8 @@ class QGstate(object):
     Moyal star product between the two Wigner QPDs. By default, the FLS component is rescaled; however, when absent, 
     the zeroth-order cumulant of the CV component is rescaled.
     '''
-    def __mul__(self, other) -> QGstate:
+
+    def __mul__(self, other: complex) -> QGstate:
         # Multiplication by a number with self.QGstate on the left
         if isinstance(other, (numbers.Number, np.number)):
             return QGstate(data_2nd = self.data_2nd,
@@ -471,11 +478,11 @@ class QGstate(object):
             raise TypeError("Cannot perform multiplication operation between the types QGstate and " 
                             + type(other).__name__ + ".")
 
-    def __rmul__(self, other) -> QGstate:
+    def __rmul__(self, other: complex) -> QGstate:
         # Multiplication by a number with self.QGstate on the right
         return self.__mul__(other)
 
-    def __truediv__(self, other) -> QGstate:
+    def __truediv__(self, other: complex) -> QGstate:
         # Division of self.QGstate by a number
         if isinstance(other, (numbers.Number, np.number)): 
             return QGstate(data_2nd = self.data_2nd,
@@ -488,16 +495,16 @@ class QGstate(object):
             raise TypeError("Cannot perform division operation between the types QGstate and " 
                             + type(other).__name__ + ".")
 
-    ### Assorted Methods ###   
+    ### Assorted Methods ###
+
     def __eq__(self, other: QGstate) -> bool:
         # Check equality of QGstates
-        tol = 1e-12
         if (isinstance(other, QGstate) and
             (self.dims_fls == other.dims_fls) and
             (self.dims_cvs == other.dims_cvs) and
-            np.all(np.abs(self.data_2nd - other.data_2nd) < tol) and 
-            np.all(np.abs(self.data_1st - other.data_1st) < tol) and
-            np.all(np.abs(self.data_0th - other.data_0th) < tol)
+            np.all(np.abs(self.data_2nd - other.data_2nd) < qgauss.settings.atol) and 
+            np.all(np.abs(self.data_1st - other.data_1st) < qgauss.settings.atol) and
+            np.all(np.abs(self.data_0th - other.data_0th) < qgauss.settings.atol)
             ):
             return True
         else:
@@ -596,7 +603,6 @@ class QGstate(object):
             elif level == 'FLS':
                 return self
 
-
     def dag(self) -> QGstate:
         # Adjoint/complex-conjugate/dagger of QGstate
         if self.isfls:
@@ -620,7 +626,7 @@ class QGstate(object):
         else:
             return self.data_0th[0]
         
-    def tidyup(self, tol=1e-12) -> QGstate:
+    def tidyup(self, tol: float = qgauss.settings.auto_tidyup_atol) -> QGstate:
         # Private void function to remove small magnitude elements from data arrays
         np.real(self.data_2nd)[np.abs(np.real(self.data_2nd)) < tol] = 0
         np.imag(self.data_2nd)[np.abs(np.imag(self.data_2nd)) < tol] = 0

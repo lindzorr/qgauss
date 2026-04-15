@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import types
+import sys
 import warnings
-import functools
+import types
 import typing
 import numbers
 import numpy.typing as npt
+
 import qgauss
 import numpy as np
-
 
 __all__ = ['QGoper']
 
@@ -17,7 +17,7 @@ class QGoper(object):
     """
     ---- Structure ----
     A class for representing operators acting on combined continuous variable (CV) and finite-level systems (FLS). The 
-    CV is restricted to be at most quadratic functions of the quadrature operators, to ensure that any 
+    CV is restricted to be at most bilinear functions of the quadrature operators, to ensure that any 
     or dynamics preserve the Gaussian nature of the CV component of the total state. Any generic quadrature operator 
     "Q" may be written as follows:
         Q = ½r.O(2).r + r.O(1) + O(0)
@@ -25,7 +25,7 @@ class QGoper(object):
         r = (q_1,p_1,q_2,p_2,...,q_N,p_N), N = dims_cvs
     where "q_j" is a position-like operator, and "p_j" is a momentum-like operator, with commutation relation:
         [q_j,p_k] = i*δ_jk. 
-    The arrays O(2),O(1), and O(0) represent the coefficients of quadratic, linear, and constant-order terms, 
+    The arrays O(2),O(1), and O(0) represent the coefficients of bilinear, linear, and constant-order terms, 
     respectively, of Q when expressed in this quadrature basis. These arrays are sufficient to represent Q, and in the 
     absence of any coupling to any FLSs, correspond to the following data structures of QGoper:
         data_2nd = O(2)
@@ -48,7 +48,7 @@ class QGoper(object):
 	Kronecker product, but is instead a direct-sum on the CV-level. The elements data_2nd and data_1st therefore 
 	require an extra operation to properly take the tensor.
     Although higher order combinations of quadrature operators may simplify to something which is ultimately 
-	quadratic in order after application of the canonical commutation relations, these expressions in general cannot be
+	bilinear in order after application of the canonical commutation relations, these expressions in general cannot be
     handled by the QGoper class due to limitations of the representation. So, while a*a.dag()*a - a.dag()*a*a == a, an 
     error will be generated as each product individually cannot be represented as a QGoper. Note, that with braketing
     this is not a problem, and so (a*a.dag() - a.dag()*a)*a == a will evaluate just fine.
@@ -57,7 +57,7 @@ class QGoper(object):
     inpt : QGoper
         Create a copy of another QGoper.
     data_2nd : array_like
-        Data for initialising the operator coefficients which are quadratic in the quadrature operators.
+        Data for initialising the operator coefficients which are bilinear in the quadrature operators.
     data_1st : array_like
         Data for initialising the operator coefficients which are linear in the quadrature operators.
     data_0th : array_like
@@ -101,13 +101,13 @@ class QGoper(object):
         Symplectic form, for a system with N = dims_cvs this has the form: Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
         
     ---- Methods ----
-    add/sub : (QGoper, QGoper | number) -> QGoper
+    add/sub : (QGoper, QGoper | complex) -> QGoper
         Returns sum/difference of two QGopers or a QGoper and a number.
     neg : QGoper -> QGoper
         Returns negative of QGoper.
-    mult : (QGoper, QGoper | number) -> QGoper
+    mult : (QGoper, QGoper | complex) -> QGoper
         Multiplication of QGoper by a scaler or another QGoper.
-    div : (QGoper, number) -> QGoper
+    div : (QGoper, complex) -> QGoper
         Division of QGoper by a scaler.
     eq : (QGoper, QGoper) -> bool
         Check equality of two QGopers.
@@ -132,12 +132,12 @@ class QGoper(object):
     
     ### Quantum-Gaussian Operator (QGoper) Initialisation ###
     def __init__(self, 
-                 inpt = None,
-                 data_2nd = None,
-                 data_1st = None,
-                 data_0th = None,
-                 dims_cvs = None,
-                 dims_fls = None
+                 inpt: QGoper = None,
+                 data_2nd: npt.NDArray = None,
+                 data_1st: npt.NDArray = None,
+                 data_0th: npt.NDArray | complex = None,
+                 dims_cvs: int = None,
+                 dims_fls: list[list[int]] = None
                 ):
 
         # QGoper as input, copy data
@@ -163,6 +163,9 @@ class QGoper(object):
             self.data_0th = data_0th
             self.data_1st = data_1st
             self.data_2nd = data_2nd
+
+            if qgauss.settings.auto_tidyup == True: 
+                self.tidyup()
 
         else:
             raise TypeError("Input for constructing QGoper is ill-formatted or of incorrect type.")
@@ -254,15 +257,14 @@ class QGoper(object):
             return (1,)
 
     @property
-    def data_2nd(self) -> np.ndarray:
+    def data_2nd(self) -> npt.NDArray:
         return self._data_2nd
     @data_2nd.setter
     def data_2nd(self, data):
-        # Initialize array of quadratic-order quadrature operator coefficients
+        # Initialize array of bilinear-order quadrature operator coefficients
         # Check size is consistent with dims, then split into symmetric and antisymmetric parts
         # Canonical commutation relations are applied to the antisymmetric, and added to data_0th
         if isinstance(data, (np.ndarray, list)):
-            tol = 1e-12
             if np.shape(data) == self.shape_2nd:
                 if self.isfls:
                     symm = (np.asarray(data, dtype = complex) 
@@ -270,7 +272,7 @@ class QGoper(object):
                     asym = (np.asarray(data, dtype = complex) 
                             - np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
                     self._data_2nd = symm
-                    if data.size != 0 and np.any(np.abs(asym) > tol):
+                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
                         self._data_0th += (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm',self.symform,asym))
                 else:
                     symm = (np.asarray(data, dtype = complex) 
@@ -278,7 +280,7 @@ class QGoper(object):
                     asym = (np.asarray(data, dtype = complex) 
                             - np.transpose(np.asarray(data, dtype = complex)))/2
                     self._data_2nd = symm
-                    if data.size != 0 and np.any(np.abs(asym) > tol):
+                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
                         self._data_0th += (-1j/4)*np.array([np.einsum('nn',np.einsum('ln,nm->lm',self.symform,asym))])
             else:
                 raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")          
@@ -289,7 +291,7 @@ class QGoper(object):
             raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
     
     @property
-    def data_1st(self) -> np.ndarray:
+    def data_1st(self) -> npt.NDArray:
         return self._data_1st
     @data_1st.setter
     def data_1st(self, data):
@@ -305,7 +307,7 @@ class QGoper(object):
             raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
     
     @property
-    def data_0th(self) -> np.ndarray:
+    def data_0th(self) -> np.NDArray:
         return self._data_0th
     @data_0th.setter
     def data_0th(self, data):
@@ -327,28 +329,25 @@ class QGoper(object):
     
     @property
     def is2nd(self) -> bool:
-        tol = 1e-12
-        if (np.all(np.abs(self.data_2nd) < tol) or 
+        if (np.all(np.abs(self.data_2nd) < qgauss.settings.atol) or 
             self.data_2nd.size == 0
-        ):
+            ):
             return False
         else:
             return True
     
     @property
     def is1st(self) -> bool:
-        tol = 1e-12
-        if (np.all(np.abs(self.data_1st) < tol) or 
+        if (np.all(np.abs(self.data_1st) < qgauss.settings.atol) or 
             self.data_1st.size == 0
-        ):
+            ):
             return False
         else:
             return True 
     
     @property
     def is0th(self) -> bool:
-        tol = 1e-12
-        if (np.all(np.abs(self.data_0th) < tol) or 
+        if (np.all(np.abs(self.data_0th) < qgauss.settings.atol) or 
             self.data_0th.size == 0
             ):
             return False
@@ -363,7 +362,7 @@ class QGoper(object):
             return False
  
     @property
-    def symform(self) -> np.ndarray:
+    def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs),np.array([[0,1],[-1,0]]))
     
     '''
@@ -373,10 +372,12 @@ class QGoper(object):
     '''
 
     ### Addition and subtraction of QGopers ###
-    # Addition and subtraction of QGopers behave in the normal way. The other object must be another QGoper of the 
-    # same dimensions, or, alternatively, a number in which case the number is multiplied by identity and added 
-    # to data_0th
-    def __add__(self, other) -> QGoper:
+    '''
+    Addition and subtraction of QGopers behave in the normal way. The other object must be another QGoper of the same 
+    dimensions, or, alternatively, a number in which case the number is multiplied by identity and added to data_0th.
+    '''
+
+    def __add__(self, other: QGoper | complex) -> QGoper:
         # Addition with QGoper on the left
         if isinstance(other, (numbers.Number, np.number)):
             # If other is a scalar, treat as identity QGoper with same dims as self
@@ -410,15 +411,15 @@ class QGoper(object):
             raise TypeError("Cannot perform addition operation between the types QGoper and " 
                             + type(other).__name__ + ".")
 
-    def __radd__(self, other) -> QGoper:
+    def __radd__(self, other: QGoper | complex) -> QGoper:
         # Addition with QGoper on the right
         return self.__add__(other)
 
-    def __sub__(self, other) -> QGoper:
+    def __sub__(self, other: QGoper | complex) -> QGoper:
         # Subtraction with QGoper on the left
         return self.__add__(other.__neg__())
 
-    def __rsub__(self, other) -> QGoper:
+    def __rsub__(self, other: QGoper | complex) -> QGoper:
         # Subtraction with QGoper on the right
         return (self.__neg__()).__add__(other)
 
@@ -431,11 +432,14 @@ class QGoper(object):
                       dims_fls = self.dims_fls
                      )   
 
-    ### Multiplication and division of QGopers ### 
-    # Multiplication and division of a QGoper by a number is implemented. Additionally, multiplcation of QGopers with 
-    # identical dimensions is also implemented; simplification of the quadrature component is performed when 
-    # constructor is called using the known commutation relation between quadrature operators.
-    def __mul__(self, other) -> QGoper:
+    ### Multiplication and division of QGopers ###
+    '''
+    Multiplication and division of a QGoper by a number is implemented. Additionally, multiplcation of QGopers with 
+    identical dimensions is also implemented; simplification of the quadrature component is performed when constructor 
+    is called using the known commutation relation between quadrature operators.
+    '''
+
+    def __mul__(self, other: QGoper | complex) -> QGoper:
         # Multiplication with QGoper on the left
         if isinstance(other, (numbers.Number, np.number)):
             # If other is a scalar, perform multiplication will all data in self
@@ -450,13 +454,13 @@ class QGoper(object):
             if ((self.dims_cvs == other.dims_cvs) and 
                 (self.dims_fls == other.dims_fls)
                 ):
-                # Check that result is quadratic/bilinear order or less in CV quadratures
+                # Check that result is bilinear/bilinear order or less in CV quadratures
                 if ((self.is2nd and other.is2nd) or
                     (self.is2nd and other.is1st) or
                     (self.is1st and other.is2nd)
                    ):
                     raise ValueError("Multiplcation of QGopers produces result which is "
-                                     + "beyond quadratic order in quadrature operators.")
+                                     + "beyond bilinear order in quadrature operators.")
                 else:
                 # Multiplication using einsum: transformation depends on whether operators is FLS and/or CV
                 # 2nd order output terms combines one 2nd and one 0th order term, or both 1st order terms
@@ -509,7 +513,7 @@ class QGoper(object):
             raise TypeError("Cannot perform multiplication operation between the types QGoper and " 
                             + type(other).__name__ + ".")
 
-    def __rmul__(self, other) -> QGoper:
+    def __rmul__(self, other: QGoper | complex) -> QGoper:
         # Multiplication with QGoper on the right
         if isinstance(other, (numbers.Number, np.number)):
             return self.__mul__(other)
@@ -519,7 +523,7 @@ class QGoper(object):
             raise TypeError("Cannot perform multiplication operation between the types QGoper and " 
                             + type(other).__name__ + ".")
 
-    def __truediv__(self, other) -> QGoper:
+    def __truediv__(self, other: complex) -> QGoper:
         # Division of QGoper by a number
         if isinstance(other, (numbers.Number, np.number)):
             return QGoper(data_2nd = self.data_2nd/other,
@@ -532,7 +536,7 @@ class QGoper(object):
             raise TypeError("Cannot perform division operation between the types QGoper and " 
                             + type(other).__name__ + ".")
 
-    def __pow__(self, n, m=None) -> QGoper:
+    def __pow__(self, n: int, m = None) -> QGoper:
         # Calculate powers of self.QGoper
         if ((m is not None) or
             (not isinstance(n, numbers.Integral)) or n < 0
@@ -547,24 +551,24 @@ class QGoper(object):
                           dims_cvs = self.dims_cvs, 
                           dims_fls = self.dims_fls)
         else:
-            raise ValueError("Power of QGoper produces result which is beyond quadratic order in quadrature operators.")
+            raise ValueError("Power of QGoper produces result which is beyond bilinear order in quadrature operators.")
 
-    ### Assorted Methods ###                 
-    def __eq__(self, other) -> bool:
+    ### Assorted Methods ###  
+
+    def __eq__(self, other: QGoper) -> bool:
         # Check equality of QGopers
-        tol = 1e-12
         if (isinstance(other, QGoper) and 
             (self.dims_fls == other.dims_fls) and
             (self.dims_cvs == other.dims_cvs) and
-            np.all(np.abs(self.data_2nd - other.data_2nd) < tol) and 
-            np.all(np.abs(self.data_1st - other.data_1st) < tol) and
-            np.all(np.abs(self.data_0th - other.data_0th) < tol)
+            np.all(np.abs(self.data_2nd - other.data_2nd) < qgauss.settings.atol) and 
+            np.all(np.abs(self.data_1st - other.data_1st) < qgauss.settings.atol) and
+            np.all(np.abs(self.data_0th - other.data_0th) < qgauss.settings.atol)
             ):
                 return True
         else:
             return False
 
-    def __and__(self, other) -> QGoper:
+    def __and__(self, other: QGoper) -> QGoper:
         # Returns tensor product of self and other
         return qgauss.tensor(self, other)
     
@@ -675,7 +679,7 @@ class QGoper(object):
                           dims_cvs = self.dims_cvs
                          )
 
-    def tidyup(self, tol=1e-12) -> QGoper:
+    def tidyup(self, tol: float = qgauss.settings.auto_tidyup_atol) -> QGoper:
         # Private void function to remove small magnitude elements from data arrays
         np.real(self.data_2nd)[np.abs(np.real(self.data_2nd)) < tol] = 0
         np.imag(self.data_2nd)[np.abs(np.imag(self.data_2nd)) < tol] = 0

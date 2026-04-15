@@ -63,11 +63,11 @@ def _tensor_oper(args) -> QGoper:
     if len(set(arg_cvs) & set(arg_fls)) != 0:
         raise ValueError("Tensor product cannot be performed with empty QGopers.")
 
-    # Check and raise error if tensor will return an operator which is greater than quadratic in the quadrature basis
+    # Check and raise error if tensor will return an operator which is greater than bilinear in the quadrature basis
     # Three checks are performed:
-    # (1) Whether two or more operators are quadratic in quadrature basis
+    # (1) Whether two or more operators are bilinear in quadrature basis
     # (2) Whether three or more operators are linear in quadrature basis
-    # (3) If one operator is of quadratic order, then no other operator may be of linear order
+    # (3) If one operator is of bilinear order, then no other operator may be of linear order
     arg_2nd = np.where(tuple(map(lambda x: x.is2nd, args)))[0]
     arg_1st = np.where(tuple(map(lambda x: x.is1st, args)))[0]
 
@@ -76,7 +76,7 @@ def _tensor_oper(args) -> QGoper:
         (len(arg_2nd) == 1 and len(arg_1st) >= 1 and len(set(arg_2nd) ^ set(arg_1st)) > 0)
        ):
         raise ValueError("Tensor product of QGopers produces result which is beyond "
-                         +"quadratic order in the quadrature operators.")
+                         +"bilinear order in the quadrature operators.")
         
     # Set data from first argument as initial data for output
     # Data from args will be used to update these values, with the QGoper

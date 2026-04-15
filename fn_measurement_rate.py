@@ -1,8 +1,6 @@
 import sys
-import types
 import warnings
-import functools
-
+import types
 import typing
 import numbers
 import numpy.typing as npt
@@ -14,7 +12,9 @@ from scipy import linalg as la
 from .qgstate import *
 from .qgoper import *
 from .qgsuper import *
-from .fn_constructors import *
+from .fn_constructor import *
+from .fn_superoperator import *
+from .fn_utilities import *
 
 __all__ = ['measurement_rate','output_state']
 
@@ -25,9 +25,9 @@ def measurement_rate(H_system: QGoper,
                      pointers: str = None, 
                      meas_oper: QGoper = None, 
                      meas_mode: int | list[int] = None, 
-                     noise_rest = 0, 
-                     freq = 0, 
-                     tol = 1e-12
+                     noise_rest: float = 0, 
+                     freq: float = 0, 
+                     tol: float = qgauss.settings.atol
                      ):
     """
     ---- Procedure ----
@@ -151,7 +151,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
                              pointer_B: QGstate, 
                              meas_oper: QGoper, 
                              meas_mode: int | list[int], 
-                             noise_rest = 0
+                             noise_rest: float = 0
                              ):
     """
     Private helper function for measurement_rate, from which it takes its parameters, and to which is returns
@@ -254,8 +254,8 @@ def _optimum_measurement_operator(pointer_A: QGstate,
 def output_state(H_system: QGoper, 
                  H_system_bath: QGoper, 
                  input_state: QGstate, 
-                 freq = 0, 
-                 tol = 1e-12
+                 freq: float = 0, 
+                 tol: float = qgauss.settings.atol
                  ) -> QGstate:
     """
     Routine to calculate the output state of the bath in frequency space. Follows the quantum input-ouput theory of
@@ -299,15 +299,7 @@ def output_state(H_system: QGoper,
     output_covariance = 0.5*(s_mat_freq@input_state.data_2nd@np.transpose(s_mat_neg_freq)
                              + s_mat_neg_freq@input_state.data_2nd@np.transpose(s_mat_freq)
                              )
-    _trim(output_mean,tol)
-    _trim(output_covariance,tol)
 
     return QGstate(data_2nd = output_covariance,
                    data_1st = output_mean,
                    dims_cvs = dims_bath)
-
-
-def _trim(input,tol):
-    """ Remove small real and imaginary terms from arrays. """
-    np.real(input)[np.abs(np.real(input)) < tol] = 0
-    np.imag(input)[np.abs(np.imag(input)) < tol] = 0
