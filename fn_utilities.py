@@ -9,7 +9,8 @@ import qgauss
 import numpy as np
 from scipy import linalg as la
 
-__all__ = ['symplectic_form','exp_integrator_phi_function','trim']
+__all__ = ['symplectic_form','exp_integrator_phi_function','trim',
+           'mat_to_vec','vec_to_mat','symmat_to_vec','vec_to_symmat']
 
 """ Utility functions used accross module. """
 
@@ -41,7 +42,41 @@ def exp_integrator_phi_function(X: npt.NDArray, k: int = 1) -> npt.NDArray:
     return la.expm(Z)[0:n,n*k:n*(k+1)]
 
 
-def trim(input: npt.NDArray, tol: float = qgauss.settings.auto_tidyup_atol) -> npt.NDArray:
+def trim(input: npt.NDArray, tol: float = qgauss.settings.tidyup_atol) -> npt.NDArray:
     """ Remove small real and imaginary terms from arrays. """
     np.real(input)[np.abs(np.real(input)) < tol] = 0
     np.imag(input)[np.abs(np.imag(input)) < tol] = 0
+
+
+def mat_to_vec(input: npt.NDArray, order = 'C') -> npt.NDArray:
+    """ Vectorization of a matrix, select 'C' for column stacking and 'R' for row stacking. """
+    if order == 'C':
+        return input.ravel(order = 'C')
+    elif order == 'R':
+        return input.ravel(order = 'R')
+    else:
+        raise TypeError("Order of vectorization must be column-stacking (C) or row-stacking (R).")
+    
+
+def vec_to_mat(input: npt.NDArray, shape: tuple[int], order = 'C') -> npt.NDArray:
+    """ Inverse of the vectorization of a matrix, select 'C' for column stacking and 'R' for row stacking. """
+    if order == 'C':
+        return np.reshape(input, shape, order = 'C')
+    elif order == 'R':
+        return np.reshape(input, shape, order = 'R')
+    else:
+        raise TypeError("Order of inverse-vectorization must be convert vector into matrix columns (C) or rows (R).")
+
+
+def symmat_to_vec(input: npt.NDArray) -> npt.NDArray:
+    """ Vectorization where a NxN symmetric matrix is converted to a vector columnwise,
+    saving only the unique elements, resulting in a vector of length N(N+1)/2. """
+    return (input)[np.tril_indices(input.shape[0])]
+
+
+def vec_to_symmat(input: npt.NDArray, shape: tuple[int]) -> npt.NDArray:
+    """ Convert a vector of length N(N+1)/2 into a NxN symmetric matrix. """
+    mask = np.tri(shape[0], dtype = bool , k = 0)
+    out = np.zeros(shape)
+    out[mask] = input
+    return out + np.triu(np.transpose(out),1)

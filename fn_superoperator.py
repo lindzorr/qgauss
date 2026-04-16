@@ -8,9 +8,8 @@ import numpy.typing as npt
 import qgauss
 import numpy as np
 
-from .qgstate import *
-from .qgoper import *
-from .qgsuper import *
+from .qgoper import QGoper
+from .qgsuper import QGsuper
 
 __all__ = ['spre','spost','sprepost',
            'commutator_super','anticommutator_super',

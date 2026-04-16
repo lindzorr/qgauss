@@ -7,17 +7,15 @@ import numpy.typing as npt
 
 import qgauss
 import numpy as np
-import scipy
 
-from .qgstate import *
-from .qgoper import *
-from .qgsuper import *
+from .qgstate import QGstate
+from .qgoper import QGoper
 
 __all__ = ['vacuum','thermal','displaced','sm_squeeze','tm_squeeze',
-           'qubit_excited','qubit_ground',
+           'qubit_excited','qubit_ground','basis_state',
            'destroy','create','position','momentum',
            'one','identity','identity_cvs','num',
-           'qeye','identity_fls','qzero','basis',
+           'qeye','identity_fls','qzero','basis_oper',
            'sigmam','sigmap','sigmax','sigmay','sigmaz','jmat'
           ]
 
@@ -93,6 +91,15 @@ def qubit_ground() -> QGstate:
     return QGstate(data_0th = np.array([[0,0],[0,1]]),
                    dims_fls = [[2],[2]])
 
+def basis_state(m: int, N: int = 1) -> QGoper:
+    # N-by-N state corresponding to the outer product of a single basis vector, |m><m|.
+    # To obey the convention used here for FLs operators, |0><0| has a one in the lower-right corner,
+    # while |N-1><N-1| is in the upper-left corner of the data matrix.
+    data = np.zeros((N, N))
+    data[N-m-1, N-m-1] = 1
+    return QGstate(data_0th = data, 
+                  dims_fls = [[N],[N]])
+
 '''
 ---------------
    Operators   
@@ -159,9 +166,9 @@ def qzero(N: int = 1) -> QGoper:
     return QGoper(data_0th = np.zeros(N), 
                   dims_fls = [[N],[N]])
 
-def basis(m: int, N: int = 1) -> QGoper:
+def basis_oper(m: int, N: int = 1) -> QGoper:
     # N-by-N operator corresponding to the outer product of a single basis vector, |m><m|.
-    # To obey the convention used here for FLs operators, |0><0| has a one in the bottom-right corner,
+    # To obey the convention used here for FLs operators, |0><0| has a one in the lower-right corner,
     # while |N-1><N-1| is in the upper-left corner of the data matrix.
     data = np.zeros((N, N))
     data[N-m-1, N-m-1] = 1

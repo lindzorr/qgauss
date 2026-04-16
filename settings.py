@@ -13,7 +13,7 @@ class Settings:
     auto_tidyup : bool
         If True, elements smaller in magnitude than auto_tidyup_atol are removed when creating 
         QGstates, QGopers, and QGsupers.
-    auto_tidyup_atol : float
+    tidyup_atol : float
         Defauly lower limit magnitude for array elements, below which they are considered zero in tidyup operations.
 
     """
@@ -21,13 +21,13 @@ class Settings:
                  atol: float = 1e-12,
                  rtol: float = 1e-12,
                  auto_tidyup: bool = True,
-                 auto_tidyup_atol: float = 1e-12,
+                 tidyup_atol: float = 1e-12,
                  ):
         
         self.atol = atol
         self.rtol = rtol
         self.auto_tidyup = auto_tidyup
-        self.auto_tidyup_atol = auto_tidyup_atol
+        self.tidyup_atol = tidyup_atol
 
     def update(self, **kwargs: Any) -> None:
         """ Update settings from keyword arguments, for example: settings.update(atol=1e-10, auto_tidyup=False) """
@@ -42,12 +42,12 @@ class Settings:
         self.atol = 1e-12
         self.rtol = 1e-12
         self.auto_tidyup = True
-        self.auto_tidyup_atol = 1e-12
+        self.auto_atol = 1e-12
 
     def as_dict(self) -> Dict[str, Any]:
         """ Return settings as a dictionary; to be passed to ODE solvers. """
         return {"atol": self.atol,
                 "rtol": self.rtol,
                 "auto_tidyup": self.auto_tidyup,
-                "auto_tidyup_atol": self.auto_tidyup_atol
+                "tidyup_atol": self.tidyup_atol
                 }

@@ -9,9 +9,9 @@ import qgauss
 import numpy as np
 from scipy import linalg as la
 
-from .qgstate import *
-from .qgoper import *
-from .qgsuper import *
+from .qgstate import QGstate
+from .qgoper import QGoper
+from .qgsuper import QGsuper
 from .fn_utilities import *
 
 __all__ = ['unitary_timeevolve','lindblad_timeevolve']
@@ -126,10 +126,8 @@ def lindblad_timeevolve(rho0: QGstate,
     f = L.wigner_1st_deriv
     S = la.expm(t*A)
     d = t * exp_integrator_phi_function(t*A) @ f
-    V = np.reshape(t * exp_integrator_phi_function(t*(la.kron(A,np.eye(2*L.dims_cvs)) 
-                                                       + la.kron(np.eye(2*L.dims_cvs),A)
-                                                       ))
-                                                       @ C.ravel(order="C"), L.shape_2nd, order="C")
+    V = vec_to_mat(t*exp_integrator_phi_function(t*(la.kron(A,np.eye(2*L.dims_cvs)) + la.kron(np.eye(2*L.dims_cvs),A))) 
+                   @ mat_to_vec(C), L.shape_2nd)
 
     if not rho0.isfls:
         out_data_2nd = S @ rho0.data_2nd @ np.transpose(S) + V

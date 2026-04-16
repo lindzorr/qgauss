@@ -10,8 +10,8 @@ import numpy.typing as npt
 import qgauss
 import numpy as np
 
-from .qgstate import *
-from .qgoper import *
+from .qgstate import QGstate
+from .qgoper import QGoper
 
 __all__ = ['tensor']
 

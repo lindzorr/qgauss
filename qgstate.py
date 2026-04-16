@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 import warnings
-
 import types
 import typing
 import numbers
@@ -10,7 +9,6 @@ import numpy.typing as npt
 
 import qgauss
 import numpy as np
-
 
 __all__ = ['QGstate']
 
@@ -144,7 +142,7 @@ class QGstate(object):
                  dims_fls: list[list[int]] = None
                 ): 
         
-        # QGstate as inpt, copy data
+        # QGstate as inpt, copy data.
         if isinstance(inpt, QGstate):
             self._dims_cvs = inpt.dims_cvs
             self._dims_fls = inpt.dims_fls 
@@ -155,15 +153,13 @@ class QGstate(object):
             self._data_1st = inpt.data_1st
             self._data_2nd = inpt.data_2nd
                
-        # In all other cases, specific components of QGstate must be included as arguments        
+        # In all other cases, specific components of QGstate must be included as arguments.     
         elif inpt is None:
-            # Set dimensions of FLS and CV components from input data
-            # Also sets the isfls and iscvs properties
+            # Set dimensions of FLS and CV components from input data. Also sets the isfls and iscvs properties.
             self.dims_cvs = dims_cvs
             self.dims_fls = dims_fls
 
-            # Set data arrays from input data
-            # Also sets the is2nd, is1st, and is0th properties
+            # Set data arrays from input data.
             self.data_0th = data_0th
             self.data_1st = data_1st
             self.data_2nd = data_2nd
@@ -181,6 +177,77 @@ class QGstate(object):
     '''
 
     @property
+    def data_2nd(self) -> npt.NDArray:
+        return self._data_2nd
+    @data_2nd.setter
+    def data_2nd(self, data):
+        # Initialize array of covariances/2nd-order cumulants.
+        # Uses data_0th component to eliminate any CV-cumulants which  
+        # should not be present through multiplication by zero,
+        # np.sign(np.abs(data)) or np.where(self.data_0th!=0,1,0).
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_2nd:
+                if self.isfls:
+                    symm = (np.asarray(data, dtype = complex) 
+                            + np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
+                    self._data_2nd = np.einsum("jk,jklm->jklm", np.where(self.data_0th!=0,1,0), symm)
+                else:
+                    symm = (np.asarray(data, dtype = complex) 
+                            + np.transpose(np.asarray(data, dtype = complex)))/2
+                    self._data_2nd = np.where(self.data_0th!=0,1,0)*symm
+            else:
+                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")                     
+        elif data is None:
+            self._data_2nd = np.zeros(self.shape_2nd, dtype = complex)
+        else:
+            raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
+            
+    @property
+    def data_1st(self) -> npt.NDArray:
+        return self._data_1st
+    @data_1st.setter
+    def data_1st(self, data):
+        # Initialise array of means/1st-order cumulants.
+        # Uses data_0th component to eliminate any CV-cumulants which  
+        # should not be present through multiplication by zero.
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_1st:
+                if self.isfls:
+                    self._data_1st = np.einsum("jk,jkl->jkl", 
+                                               np.where(self.data_0th!=0,1,0), 
+                                               np.asarray(data, dtype = complex)
+                                               )
+                else:
+                    self._data_1st = np.asarray(data, dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.")  
+        elif data is None:
+            self._data_1st = np.zeros(self.shape_1st, dtype = complex)
+        else:
+            raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
+            
+    @property
+    def data_0th(self) -> npt.NDArray:
+        return self._data_0th
+    @data_0th.setter
+    def data_0th(self, data):
+        # Initialize array of zeroth-order cumulants.
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_0th:
+                self._data_0th = np.asarray(data, dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
+        elif isinstance(data, (numbers.Number, np.number)):
+            if self.shape_0th == (1,):
+                self._data_0th = np.array([data], dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
+        elif data is None:
+            self._data_0th = np.full(self.shape_0th, 1, dtype = complex)                             
+        else:
+            raise TypeError("Input of data_0th is not of a supported type: np.ndarray, list, or number.")
+    
+    @property
     def dims_cvs(self) -> int:
         return self._dims_cvs
     @dims_cvs.setter
@@ -191,7 +258,7 @@ class QGstate(object):
             self._dims_cvs = 0
         else:
             raise TypeError("Input to dims_cvs is not of a supported type: number.")
-        # Set iscvs property
+        # Set iscvs property.
         self.iscvs = dims
 
     @property
@@ -205,28 +272,8 @@ class QGstate(object):
             self._dims_fls = [[],[]]
         else:
             raise TypeError("Input to dims_fls is not of a supported type: np.ndarray or list.")
-        # Set isfls property
+        # Set isfls property.
         self.isfls = dims
-
-    @property
-    def iscvs(self) -> bool:
-        return self._iscvs
-    @iscvs.setter
-    def iscvs(self, dims):
-        if dims == 0 or dims == None:
-            self._iscvs = False
-        else:
-            self._iscvs = True
-    
-    @property
-    def isfls(self) -> bool:
-        return self._isfls     
-    @isfls.setter
-    def isfls(self, dims):
-        if dims == [[],[]] or dims == None:
-            self._isfls = False
-        else:
-            self._isfls = True
 
     @property
     def shape_2nd(self) -> tuple[int,int,int,int] | tuple[int,int]:
@@ -259,77 +306,26 @@ class QGstate(object):
                     )
         else:
             return (1,)
-
+    
     @property
-    def data_2nd(self) -> npt.NDArray:
-        return self._data_2nd
-    @data_2nd.setter
-    def data_2nd(self, data):
-        # Initialize array of covariances/2nd-order cumulants
-        # Uses data_0th component to eliminate any CV-cumulants which  
-        # should not be present through multiplication by zero
-        # np.sign(np.abs(data)) or np.where(self.data_0th!=0,1,0)
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_2nd:
-                if self.isfls:
-                    symm = (np.asarray(data, dtype = complex) 
-                            + np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
-                    self._data_2nd = np.einsum("jk,jklm->jklm", np.where(self.data_0th!=0,1,0), symm)
-                else:
-                    symm = (np.asarray(data, dtype = complex) 
-                            + np.transpose(np.asarray(data, dtype = complex)))/2
-                    self._data_2nd = np.where(self.data_0th!=0,1,0)*symm
-            else:
-                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")                     
-        elif data is None:
-            self._data_2nd = np.zeros(self.shape_2nd, dtype = complex)
+    def iscvs(self) -> bool:
+        return self._iscvs
+    @iscvs.setter
+    def iscvs(self, dims):
+        if dims == 0 or dims == None:
+            self._iscvs = False
         else:
-            raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
-            
+            self._iscvs = True
+    
     @property
-    def data_1st(self) -> npt.NDArray:
-        return self._data_1st
-    @data_1st.setter
-    def data_1st(self, data):
-        # Initialise array of means/1st-order cumulants
-        # Uses data_0th component to eliminate any CV-cumulants which  
-        # should not be present through multiplication by zero
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_1st:
-                if self.isfls:
-                    self._data_1st = np.einsum("jk,jkl->jkl", 
-                                               np.where(self.data_0th!=0,1,0), 
-                                               np.asarray(data, dtype = complex)
-                                               )
-                else:
-                    self._data_1st = np.asarray(data, dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.")  
-        elif data is None:
-            self._data_1st = np.zeros(self.shape_1st, dtype = complex)
+    def isfls(self) -> bool:
+        return self._isfls     
+    @isfls.setter
+    def isfls(self, dims):
+        if dims == [[],[]] or dims == None:
+            self._isfls = False
         else:
-            raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
-            
-    @property
-    def data_0th(self) -> npt.NDArray:
-        return self._data_0th
-    @data_0th.setter
-    def data_0th(self, data):
-        # Initialize array of zeroth-order cumulants
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_0th:
-                self._data_0th = np.asarray(data, dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif isinstance(data, (numbers.Number, np.number)):
-            if self.shape_0th == (1,):
-                self._data_0th = np.array([data], dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif data is None:
-            self._data_0th = np.full(self.shape_0th, 1, dtype = complex)                             
-        else:
-            raise TypeError("Input of data_0th is not of a supported type: np.ndarray, list, or number.")
+            self._isfls = True
     
     @property
     def isherm(self) -> bool:
@@ -626,7 +622,7 @@ class QGstate(object):
         else:
             return self.data_0th[0]
         
-    def tidyup(self, tol: float = qgauss.settings.auto_tidyup_atol) -> QGstate:
+    def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGstate:
         # Private void function to remove small magnitude elements from data arrays
         np.real(self.data_2nd)[np.abs(np.real(self.data_2nd)) < tol] = 0
         np.imag(self.data_2nd)[np.abs(np.imag(self.data_2nd)) < tol] = 0

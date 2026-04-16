@@ -6,6 +6,7 @@ import types
 import typing
 import numbers
 import numpy.typing as npt
+from functools import cached_property
 
 import qgauss
 import numpy as np
@@ -89,14 +90,14 @@ class QGoper(object):
         Does QGoper have a CV component.
     isfls : bool
         Does QGoper have an FLS component.
-    isherm : bool
-        Is QGoper a Hermitian operator.
     is2nd : bool
         Does QGoper have a 2nd-order quadrature component.
     is1st : bool
         Does QGoper have a 1st-order quadrature component.
     is0th : bool
         Does QGoper have a 0th-order quadrature component.
+    isherm : bool
+        Is QGoper a Hermitian operator.
     symform : array
         Symplectic form, for a system with N = dims_cvs this has the form: Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
         
@@ -140,7 +141,7 @@ class QGoper(object):
                  dims_fls: list[list[int]] = None
                 ):
 
-        # QGoper as input, copy data
+        # QGoper as input, copy data.
         if isinstance(inpt, QGoper):
             self._dims_cvs = inpt.dims_cvs
             self._dims_fls = inpt.dims_fls
@@ -151,15 +152,13 @@ class QGoper(object):
             self._data_1st = inpt.data_1st
             self._data_2nd = inpt.data_2nd
 
-        # In other cases, specific components of QGoper must be included as arguments        
+        # In other cases, specific components of QGoper must be included as arguments.
         elif inpt is None:
-            # Set dimensions of FLS and CV components from input data
-            # Also sets the isfls and iscvs properties
+            # Set dimensions of FLS and CV components from input data. Also sets the isfls and iscvs properties.
             self.dims_cvs = dims_cvs
             self.dims_fls = dims_fls
 
-            # Set data arrays from input data
-            # Also sets the is2nd, is1st, and is0th properties
+            # Set data arrays from input data.
             self.data_0th = data_0th
             self.data_1st = data_1st
             self.data_2nd = data_2nd
@@ -177,6 +176,80 @@ class QGoper(object):
     '''
 
     @property
+    def data_2nd(self) -> npt.NDArray:
+        return self._data_2nd
+    @data_2nd.setter
+    def data_2nd(self, data):
+        # Initialize array of bilinear-order quadrature operator coefficients.
+        # Check size is consistent with dims, then split into symmetric and antisymmetric parts
+        # Canonical commutation relations are applied to the antisymmetric, and added to data_0th.
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_2nd:
+                if self.isfls:
+                    symm = (np.asarray(data, dtype = complex) 
+                            + np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
+                    asym = (np.asarray(data, dtype = complex) 
+                            - np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
+                    self._data_2nd = symm
+                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
+                        self._data_0th += (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm',self.symform,asym))
+                else:
+                    symm = (np.asarray(data, dtype = complex) 
+                            + np.transpose(np.asarray(data, dtype = complex)))/2
+                    asym = (np.asarray(data, dtype = complex) 
+                            - np.transpose(np.asarray(data, dtype = complex)))/2
+                    self._data_2nd = symm
+                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
+                        self._data_0th += (-1j/4)*np.array([np.einsum('nn',np.einsum('ln,nm->lm',self.symform,asym))])
+            else:
+                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")          
+        elif data is None:
+            # If no data is provided, set data_2nd to zero matrix.
+            self._data_2nd = np.zeros(self.shape_2nd, dtype = complex)
+        else:
+            raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
+        self._invalidate_order('2nd')
+    
+    @property
+    def data_1st(self) -> npt.NDArray:
+        return self._data_1st
+    @data_1st.setter
+    def data_1st(self, data):
+        # Initialize array of linear-order quadrature operator coefficients.
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_1st:
+                self._data_1st = np.asarray(data, dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.") 
+        elif data is None:
+            self._data_1st = np.zeros(self.shape_1st, dtype = complex)
+        else:
+            raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
+        self._invalidate_order('1st')
+    
+    @property
+    def data_0th(self) -> np.NDArray:
+        return self._data_0th
+    @data_0th.setter
+    def data_0th(self, data):
+        # Initialize array of zeroth-order quadrature operator coefficients.
+        if isinstance(data, (np.ndarray, list)):
+            if np.shape(data) == self.shape_0th:
+                self._data_0th = np.asarray(data, dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
+        elif isinstance(data, (numbers.Number, np.number)):
+            if self.shape_0th == (1,):
+                self._data_0th = np.array([data], dtype = complex)
+            else:
+                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
+        elif data is None:
+            self._data_0th = np.zeros(self.shape_0th, dtype = complex)               
+        else:
+            raise TypeError("data_0th is not of a supported type: np.ndarray, list, or number.")
+        self._invalidate_order('0th')
+    
+    @property
     def dims_cvs(self) -> int:
         return self._dims_cvs
     @dims_cvs.setter
@@ -187,7 +260,7 @@ class QGoper(object):
             self._dims_cvs = 0
         else:
             raise TypeError("Input to dims_cvs is not of a supported type: number.")
-        # Set iscvs property
+        # Set iscvs property.
         self.iscvs = dims
         
     @property
@@ -201,28 +274,8 @@ class QGoper(object):
             self._dims_fls = [[],[]]
         else:
             raise TypeError("Input to dims_fls is not of a supported type: np.ndarray or list.")
-        # Set isfls property
+        # Set isfls property.
         self.isfls = dims
-
-    @property
-    def iscvs(self) -> bool:
-        return self._iscvs
-    @iscvs.setter
-    def iscvs(self, dims):
-        if dims == 0 or dims == None:
-            self._iscvs = False
-        else:
-            self._iscvs = True
-
-    @property
-    def isfls(self) -> bool:
-        return self._isfls     
-    @isfls.setter
-    def isfls(self, dims):
-        if dims == [[],[]] or dims == None:
-            self._isfls = False
-        else:
-            self._isfls = True
 
     @property
     def shape_2nd(self) -> tuple[int,int,int,int] | tuple[int,int]:
@@ -257,77 +310,26 @@ class QGoper(object):
             return (1,)
 
     @property
-    def data_2nd(self) -> npt.NDArray:
-        return self._data_2nd
-    @data_2nd.setter
-    def data_2nd(self, data):
-        # Initialize array of bilinear-order quadrature operator coefficients
-        # Check size is consistent with dims, then split into symmetric and antisymmetric parts
-        # Canonical commutation relations are applied to the antisymmetric, and added to data_0th
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_2nd:
-                if self.isfls:
-                    symm = (np.asarray(data, dtype = complex) 
-                            + np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
-                    asym = (np.asarray(data, dtype = complex) 
-                            - np.transpose(np.asarray(data, dtype = complex),[0,1,3,2]))/2
-                    self._data_2nd = symm
-                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
-                        self._data_0th += (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm',self.symform,asym))
-                else:
-                    symm = (np.asarray(data, dtype = complex) 
-                            + np.transpose(np.asarray(data, dtype = complex)))/2
-                    asym = (np.asarray(data, dtype = complex) 
-                            - np.transpose(np.asarray(data, dtype = complex)))/2
-                    self._data_2nd = symm
-                    if data.size != 0 and np.any(np.abs(asym) > qgauss.settings.atol):
-                        self._data_0th += (-1j/4)*np.array([np.einsum('nn',np.einsum('ln,nm->lm',self.symform,asym))])
-            else:
-                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")          
-        elif data is None:
-            # If no data is provided, set data_2nd to zero matrix
-            self._data_2nd = np.zeros(self.shape_2nd, dtype = complex)
+    def iscvs(self) -> bool:
+        return self._iscvs
+    @iscvs.setter
+    def iscvs(self, dims):
+        if dims == 0 or dims == None:
+            self._iscvs = False
         else:
-            raise TypeError("Input of data_2nd is not of a supported type: np.ndarray or list.")
-    
+            self._iscvs = True
+
     @property
-    def data_1st(self) -> npt.NDArray:
-        return self._data_1st
-    @data_1st.setter
-    def data_1st(self, data):
-        # Initialize array of linear-order quadrature operator coefficients
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_1st:
-                self._data_1st = np.asarray(data, dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.") 
-        elif data is None:
-            self._data_1st = np.zeros(self.shape_1st, dtype = complex)
+    def isfls(self) -> bool:
+        return self._isfls     
+    @isfls.setter
+    def isfls(self, dims):
+        if dims == [[],[]] or dims == None:
+            self._isfls = False
         else:
-            raise TypeError("Input of data_1st is not of a supported type: np.ndarray or list.")
-    
-    @property
-    def data_0th(self) -> np.NDArray:
-        return self._data_0th
-    @data_0th.setter
-    def data_0th(self, data):
-        # Initialize array of zeroth-order quadrature operator coefficients
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_0th:
-                self._data_0th = np.asarray(data, dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif isinstance(data, (numbers.Number, np.number)):
-            if self.shape_0th == (1,):
-                self._data_0th = np.array([data], dtype = complex)
-            else:
-                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif data is None:
-            self._data_0th = np.zeros(self.shape_0th, dtype = complex)               
-        else:
-            raise TypeError("data_0th is not of a supported type: np.ndarray, list, or number.")
-    
-    @property
+            self._isfls = True
+
+    @cached_property
     def is2nd(self) -> bool:
         if (np.all(np.abs(self.data_2nd) < qgauss.settings.atol) or 
             self.data_2nd.size == 0
@@ -336,7 +338,7 @@ class QGoper(object):
         else:
             return True
     
-    @property
+    @cached_property
     def is1st(self) -> bool:
         if (np.all(np.abs(self.data_1st) < qgauss.settings.atol) or 
             self.data_1st.size == 0
@@ -345,7 +347,7 @@ class QGoper(object):
         else:
             return True 
     
-    @property
+    @cached_property
     def is0th(self) -> bool:
         if (np.all(np.abs(self.data_0th) < qgauss.settings.atol) or 
             self.data_0th.size == 0
@@ -354,6 +356,20 @@ class QGoper(object):
         else:
             return True
     
+    def _invalidate_order(self, order):
+        # Remove chached properties when updating data matrices.
+        if order == '2nd':
+            if hasattr(self, 'is2nd'):
+                delattr(self, 'is2nd')
+            if hasattr(self, 'is0th'):
+                delattr(self, 'is0th')
+        elif order == '1st':
+            if hasattr(self, 'is1st'):
+                delattr(self, 'is1st')
+        elif order == '0th':
+            if hasattr(self, 'is0th'):
+                delattr(self, 'is0th')
+
     @property
     def isherm(self) -> bool:
         if self == self.dag():
@@ -679,7 +695,7 @@ class QGoper(object):
                           dims_cvs = self.dims_cvs
                          )
 
-    def tidyup(self, tol: float = qgauss.settings.auto_tidyup_atol) -> QGoper:
+    def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGoper:
         # Private void function to remove small magnitude elements from data arrays
         np.real(self.data_2nd)[np.abs(np.real(self.data_2nd)) < tol] = 0
         np.imag(self.data_2nd)[np.abs(np.imag(self.data_2nd)) < tol] = 0

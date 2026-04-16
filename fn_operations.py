@@ -9,13 +9,12 @@ import qgauss
 import numpy as np
 from scipy import linalg as la
 
-from .qgstate import *
-from .qgoper import *
-from .qgsuper import *
+from .qgstate import QGstate
+from .qgoper import QGoper
+from .qgsuper import QGsuper
 from .fn_utilities import *
 
-__all__ = ['expect','commutator','ASp_transform',
-           'unitary_displace','unitary_rotate','unitary_squeeze']
+__all__ = ['expect','commutator','ASp_transform']
 
 
 def expect(oper: QGoper,
@@ -265,24 +264,3 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                        dims_fls = input.dims_fls,
                        dims_cvs = input.dims_cvs
                        )
-    
-
-def unitary_displace(input: QGstate | QGoper | QGsuper,
-                     mode: int,
-                     alpha: complex = None
-                     ) -> QGstate | QGoper | QGsuper:
-    return NotImplemented
-
-
-def unitary_rotate(input: QGstate | QGoper | QGsuper,
-                   modes: int | npt.NDArray[int] | tuple[int],
-                   angle: complex = None
-                   ) -> QGstate | QGoper | QGsuper:
-    return NotImplemented
-
-
-def unitary_squeeze(input: QGstate | QGoper | QGsuper,
-                    modes: int | npt.NDArray[int] | tuple[int],
-                    angle: complex = None
-                    ) -> QGstate | QGoper | QGsuper:
-    return NotImplemented
