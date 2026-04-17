@@ -1,10 +1,4 @@
-import sys
-import warnings
-import types
-import typing
-import numbers
 import numpy.typing as npt
-
 import qgauss
 import numpy as np
 from scipy import linalg as la
@@ -74,9 +68,9 @@ def symmat_to_vec(input: npt.NDArray) -> npt.NDArray:
     return (input)[np.tril_indices(input.shape[0])]
 
 
-def vec_to_symmat(input: npt.NDArray, shape: tuple[int]) -> npt.NDArray:
+def vec_to_symmat(input: npt.NDArray, dims: int) -> npt.NDArray:
     """ Convert a vector of length N(N+1)/2 into a NxN symmetric matrix. """
-    mask = np.tri(shape[0], dtype = bool , k = 0)
-    out = np.zeros(shape)
+    mask = np.tri(dims, dtype = bool , k = 0)
+    out = np.zeros((dims,dims), dtype = complex)
     out[mask] = input
     return out + np.triu(np.transpose(out),1)
