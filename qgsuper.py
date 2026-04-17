@@ -13,6 +13,7 @@ import numpy as np
 
 __all__ = ['QGsuper']
 
+
 class QGsuper(object):
 
     """

@@ -9,8 +9,10 @@ import numpy.typing as npt
 
 import qgauss
 import numpy as np
+from scipy.linalg import inv,eigvals
 
 __all__ = ['QGstate']
+
 
 class QGstate(object):
 
@@ -96,6 +98,12 @@ class QGstate(object):
         Does the QGstate have an FLS component.
     isherm : bool
         Is QGstate a Hermitian operator.
+    isnormalized : bool
+        Is QGstate is properly normalized, that is, does it have trace one.
+    isintegrable : bool
+        Is the state integrable. Done by checking whether the CVS components on the diagonal are integrable for mixed
+        state, or just the state if it is CVs-only. FLS-only states are automatically integrable. The FLS component must
+        be square.
     symform : array
         Symplectic form, for a system with N = dims_cvs this has the form: Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
         
@@ -125,8 +133,10 @@ class QGstate(object):
     dag() : QGstate -> QGstate
         Adjoint (dagger) of QGstate.
     trace() : QGstate -> number
-        Returns trace of the entire density matrix represented by QGstate,
-        which is encoded in the diagonal elements of data_0th.
+        Returns trace of the entire density matrix represented by QGstate, which is encoded in the diagonal elements 
+        of data_0th. Raises an error is the integral of the CVS component does not converge.
+    normalize() : self
+        Checks if QGstate is normalized, and if not, updates data_0th so that the trace is unity.
     tidyup(tol) :
         Removes small elements from QGstate below some cut-off "tol".
 
@@ -333,7 +343,43 @@ class QGstate(object):
             return True
         else:
             return False
-     
+        
+    @property
+    def isnormalized(self) -> bool:
+        if self.trace() == 1:
+            return True
+        else:
+            return False
+    
+    @property
+    def isintegrable(self) -> bool:
+        if self.isfls and not self.iscvs:
+            return True
+        elif self.isfls and self.iscvs:
+            if self.shape_0th[0] == self.shape_0th[1]:
+                return all([QGstate._integrable_cv(self[k,k]) for k in range(self.shape_0th[1])])
+            else:
+                False
+        else:
+            return QGstate._integrable_cv(self)
+
+    @staticmethod
+    def _integrable_cv(self: QGstate) -> bool:
+        # Determines if the specific CVS QGstate is integrable by checking if the real part of the precision matrix is 
+        # positive definite. If data_0th is 0, then the state is automatically integrable.
+        if self.data_0th == 0:
+                return True
+        else:
+            try:
+                re_precision_mat = np.real(inv(self.data_2nd))
+                evals = eigvals(re_precision_mat)
+                if np.all(evals > 0) and np.all(re_precision_mat == np.transpose(re_precision_mat)):
+                    return True
+                else:
+                    return False
+            except:
+                return False
+        
     @property
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs),np.array([[0,1],[-1,0]]))
@@ -616,11 +662,25 @@ class QGstate(object):
                           )
 
     def trace(self) -> QGstate:
-        # Trace of entire density, currently assumes that all CV components are integrable
-        if self.isfls:
-            return np.trace(self.data_0th)
+        # Trace of entire density. Checks that FLS component is square and that all CVS components on the diagonal
+        # are integrable.
+        if self.isintegrable:
+            if self.isfls:
+                return np.trace(self.data_0th)
+            else:
+                return self.data_0th[0]
         else:
-            return self.data_0th[0]
+            raise ValueError("The trace of this state does not converge to a finite value.")
+        
+    def normalize(self):
+        # Check if QGstate is normalized, and if not, normalize data_0th.
+        if self.isintegrable:
+            if self.isfls and np.trace(self.data_0th) != 1:
+                self.data_0th *= 1/np.trace(self.data_0th)
+            elif self.data_0th[0] != 1:
+                self.data_0th *= 1/self.data_0th[0]
+        else:
+            raise ValueError("The trace of this state does not converge to a finite value.")
         
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGstate:
         # Private void function to remove small magnitude elements from data arrays

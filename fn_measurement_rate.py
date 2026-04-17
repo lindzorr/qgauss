@@ -11,6 +11,7 @@ from scipy import linalg as la
 
 from .qgstate import QGstate
 from .qgoper import QGoper
+from .fn_utilities import *
 
 __all__ = ['measurement_rate','output_state']
 
@@ -272,7 +273,7 @@ def output_state(H_system: QGoper,
         tolerance value are set to zero.
 
     ---- Returns ----
-    output_state : QGstate
+    output : QGstate
         Output state at specified frequency. Note, displacement may be complex-valued, and hence this may not 
         correspond to a real state.
     """
@@ -295,7 +296,7 @@ def output_state(H_system: QGoper,
     output_covariance = 0.5*(s_mat_freq@input_state.data_2nd@np.transpose(s_mat_neg_freq)
                              + s_mat_neg_freq@input_state.data_2nd@np.transpose(s_mat_freq)
                              )
-
-    return QGstate(data_2nd = output_covariance,
+    output = QGstate(data_2nd = output_covariance,
                    data_1st = output_mean,
                    dims_cvs = dims_bath)
+    return output

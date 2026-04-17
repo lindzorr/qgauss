@@ -13,6 +13,7 @@ import numpy as np
 
 __all__ = ['QGoper']
 
+
 class QGoper(object):
     
     """
@@ -558,8 +559,12 @@ class QGoper(object):
             (not isinstance(n, numbers.Integral)) or n < 0
            ):
             return NotImplemented
+        elif n == 0:
+            return QGoper(data_0th = np.identity(self.shape_0th[0]),
+                          dims_cvs = self.dims_cvs,
+                          dims_fls = self.dims_fls)
         elif n == 1:
-            return QGoper(inpt=self)
+            return QGoper(inpt = self)
         elif n == 2 and not self.is2nd:
             return self.__mul__(self)
         elif n >= 3 and not self.is2nd and not self.is1st:

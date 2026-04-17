@@ -46,15 +46,18 @@ def expect(oper: QGoper,
     if (state.isfls and not state.iscvs):
         return np.trace(state.data_0th @ oper.data_0th)
     
-    elif (not state.isfls and state.iscvs):
-        return _cvs_expect(state, oper)
+    # When CVS components are present, we must check that the state is integrable
+    if state.iscvs and state.isintegrable:
+        if not state.isfls:
+            return _expect_cv(state, oper)
+        elif state.isfls:
+            return sum(_expect_cv(state[j,k], oper[k,j])
+                       for j,k in zip(np.prod(state.dims_fls[0]),np.prod(state.dims_fls[1])))
+        else:
+            raise ValueError("State is not integrable, and hence the expectation value cannot be computed.")
 
-    elif (state.isfls and state.iscvs):
-        return sum(_cvs_expect(state[j,k], oper[k,j]) 
-                   for j,k in zip(np.prod(state.dims_fls[0]),np.prod(state.dims_fls[1])))
 
-
-def _cvs_expect(state: QGstate, oper: QGoper):
+def _expect_cv(state: QGstate, oper: QGoper):
     """ Private helper function for expect to calculate expectation value for CV only state and operator. """
     return state.data_0th*(0.5*np.trace(state.data_2nd @ oper.data_2nd)
                            + 0.5*(state.data_1st @ oper.data_2nd @ state.data_1st)

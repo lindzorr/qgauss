@@ -1,8 +1,6 @@
 import sys
-import types
 import warnings
-import functools
-
+import types
 import typing
 import numbers
 import numpy.typing as npt

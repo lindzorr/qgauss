@@ -92,10 +92,10 @@ def backaction_rate_steadystate(LV: QGsuper,
         row_total = np.prod(LV.dims_fls[0][0])
         col_total = np.prod(LV.dims_fls[0][1])
 
-        ba_total = np.empty([row_total,col_total],dtype=complex)
-        ba_bare = np.empty([row_total,col_total],dtype=complex)
-        ba_meas_ind = np.empty([row_total,col_total],dtype=complex)
-        ba_para = np.empty([row_total,col_total],dtype=complex)
+        ba_total = np.empty([row_total,col_total], dtype = complex)
+        ba_bare = np.empty([row_total,col_total], dtype = complex)
+        ba_meas_ind = np.empty([row_total,col_total], dtype = complex)
+        ba_para = np.empty([row_total,col_total], dtype = complex)
 
         for qrow in range(0,row_total):
             for qcol in range(0,col_total):
@@ -106,25 +106,24 @@ def backaction_rate_steadystate(LV: QGsuper,
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def _backaction_steadystate_solver(input: QGstate,
+def _backaction_steadystate_solver(LV: QGsuper,
                                    tol: float = qgauss.settings.atol
-                                   ) -> QGstate:
+                                   ):
     """
-    The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The backaction
-    rate is then extracted from dv/dt, defined by
-        dv/dt = G + mean.D + (1/2)*mean.B.mean + (1/2)*trace[B.cov]
-    where 'cov' and 'mean' are the moments of ρ. The elements B,D,G are extracted 
-    from the 'input' Liouvillian with governs the dynamics of ρ. The dephasing rate
-    and frequency shift correspond to the real and imaginary parts of 'v', 
-    respectively. The backaction may be broken into bare/innate 'ba_bare', 
-    measurement induced 'ba_meas_ind', and parasitic 'ba_para', components:
+    The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The backaction rate is then extracted from dv/dt,
+    defined by
+        dv/dt = G + μ.D + (1/2)*μ.B.μ + (1/2)*trace[B.Σ]
+    where Σ and μ are the 2nd and 1st central moments of ρ, respectively. The elements B,D,G are extracted from the 
+    'input' Liouvillian with governs the dynamics of ρ. The dephasing rate and frequency shift correspond to the real 
+    and imaginary parts of 'v', respectively. The backaction may be broken into bare/innate 'ba_bare', measurement 
+    induced 'ba_meas_ind', and parasitic 'ba_para', components:
         bare = G
-        meas_ind = mean.D + (1/2)*mean.B.mean
-        para = (1/2)*trace[B.cov]
+        meas_ind = μ.D + (1/2)*μ.B.μ
+        para = (1/2)*trace[B.Σ]
 
     ---- Parameters ----
-    input : QGstate
-        "State" from which to extract backaction.
+    LV : QGsuper
+        System QGsuper whose steady-state is to be solved, and the backaction extracted. Must be CVS-only.
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
@@ -136,7 +135,7 @@ def _backaction_steadystate_solver(input: QGstate,
     ba_para : complex
     """
     # Solve the steady-state components of the system evolving under the 'input' QGsuper
-    steady_state = moment_solver_steadystate(input,tol)
+    steady_state = moment_solver_steadystate(LV,tol)
     cov = steady_state.data_2nd
     mean = steady_state.data_1st
 
@@ -154,13 +153,17 @@ def _backaction_steadystate_solver(input: QGstate,
     return ba_total,ba_bare,ba_meas_ind,ba_para
 
 
-def moment_solver_steadystate(input: QGsuper, 
+def moment_solver_steadystate(LV: QGsuper, 
                               tol: float = qgauss.settings.atol
                               ) -> QGstate:
     """
+    Steady-state solver for the steady-state for a corresponding CV system Liouvillian, L0. The function will exit if
+    it is found that no steady-state solution to L0 exists.
+
     ---- Parameters ----
-    input : QGsuper
+    LV : QGsuper
         System Lindbladian/Liouvillian. The Liouvillian need not describe the evolution of a true master equation.
+        Must be CVS-only, and so contain no FLS component.
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. Parts of numbers below this
         tolerance value are set to zero.
@@ -177,12 +180,12 @@ def moment_solver_steadystate(input: QGsuper,
     phase space of the form, where W(r;t) is the Wigner function
         ∂W(r;t)/∂t = (-G - (∂/∂r).F - r.D + ½*(∂/∂r).C.(∂/∂r) - ½*r.B.r - (∂/∂r).A.r) W(r;t)
     """
-    dims = input.dims_cvs
-    A = input.wigner_2nd_deriv_var
-    B = input.wigner_2nd_var
-    C = input.wigner_2nd_deriv
-    D = input.wigner_1st_var
-    F = input.wigner_1st_deriv
+    dims = LV.dims_cvs
+    A = LV.wigner_2nd_deriv_var
+    B = LV.wigner_2nd_var
+    C = LV.wigner_2nd_deriv
+    D = LV.wigner_1st_var
+    F = LV.wigner_1st_deriv
 
     # Check if system is stable before proceeding
     if not all(np.real(x) < 0 for x in la.eigvals(A)):
@@ -192,12 +195,12 @@ def moment_solver_steadystate(input: QGsuper,
     # Solve steady-state moment equations generated by the arrays
     if (np.all(np.abs(B) < tol) and np.all(np.abs(D) < tol)):
         """
-        Solver for the steady-state of norm preserving evolution. This solver converts the input 
-        data into the following matrix equations:
-            0 = cov.A^T + cov.V + C
-            0 = A.mean + F
-        'cov' is the covariance matrix, and 'mean' is an array containing the means. The first 
-        expression is a Lyapunov equation, and so the inbuilt scipy solver is used here.
+        Solver for the steady-state of a norm-preserving Liouvillian. This solver converts the input data into the 
+        following matrix equations:
+            0 = Σ.A^T + Σ.V + C
+            0 = A.μ + F
+        Σ is the covariance matrix, and μ is an array containing the means. A Scipy function is used here to solve 
+        the Lyapunov equation for the covariance matrix.
         """
         # Solve covariance matrix
         cov = la.solve_continuous_lyapunov(A,-C)
@@ -206,13 +209,12 @@ def moment_solver_steadystate(input: QGsuper,
 
     else:
         """
-        Solver for the steady-state of norm non-preserving evolution. This solver then converts the 
-        input data into the following non-linear matrix equations:
-            0 = A.cov + cov.A^T - cov.B.cov + C
-            0 = (A - B.cov).mean + F - cov.D
-        'cov' is the covariance matrix, and 'mean' is an array containing the means. For the covariance 
-        matrix, the "Continuous Algebraic Ricatti Equation" (CARE) is solved using the stable-subspace
-        solution method.
+        Solver for the steady-state of a non-norm-preserving Liouvillian. This solver converts the input data into the 
+        following non-linear matrix equations:
+            0 = A.Σ + Σ.A^T - Σ.B.Σ + C
+            0 = (A - B.Σ).μ + F - Σ.D
+        Σ is the covariance matrix, and μ is an array containing the means. For the covariance matrix, the continuous 
+        algebraic Riccati equation (CARE) is solved using the stable-subspace solution method.
         """
         # Solve covariance matrix
         H = np.block([[np.transpose(A), -B], [-C, -A]]) # "Hamiltonian" matrix, H-matrix
