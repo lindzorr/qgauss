@@ -232,12 +232,12 @@ def moment_timeevolve(L0: QGsuper = None,
     if Lt == []:
         At, Bt, Ct, Dt, Ft, Gt = [], [], [], [], [], []
     else:
-        At = [x for x in Lt if np.all(np.abs(x[0].wigner_2nd_deriv_var) < tol)]
-        Bt = [x for x in Lt if np.all(np.abs(x[0].wigner_2nd_var) < tol)]
-        Ct = [x for x in Lt if np.all(np.abs(x[0].wigner_2nd_deriv) < tol)]
-        Dt = [x for x in Lt if np.all(np.abs(x[0].wigner_1st_var) < tol)]
-        Ft = [x for x in Lt if np.all(np.abs(x[0].wigner_1st_deriv) < tol)]
-        Gt = [x for x in Lt if np.all(np.abs(x[0].wigner_0th) < tol)]
+        At = [[x[0].wigner_2nd_deriv_var,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_2nd_deriv_var) < tol)]
+        Bt = [[x[0].wigner_2nd_var,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_2nd_var) < tol)]
+        Ct = [[x[0].wigner_2nd_deriv,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_2nd_deriv) < tol)]
+        Dt = [[x[0].wigner_1st_var,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_1st_var) < tol)]
+        Ft = [[x[0].wigner_1st_deriv,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_1st_deriv) < tol)]
+        Gt = [[x[0].wigner_0th,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_0th) < tol)]
 
     # Check if dynamics of the covariances and means do not preverse the norm of the state. Pure dissipation is allowed
     # in the form of a non-zer Gt. The first section will solve the ODEs when the covariances and means are uncoupled, 
@@ -399,7 +399,7 @@ def backaction_timeevolve(L0: QGsuper = None,
     # ----------------------------------------------------------------------
     # No qubits are present, solve the CV system
     if not L0.isfls and L0.iscvs:
-        ba_integrated,ba_total,ba_bare,ba_meas_ind,ba_para = \
+        ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
             _backaction_timeevolve_solver(L0 = L0, Lt = Lt, rho0 = rho0, tlist = tlist, **options)
 
     # ----------------------------------------------------------------------
@@ -494,6 +494,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     """
     # Solve the steady-state components of the system evolving under the 'input' QGsuper
     rhot = moment_timeevolve(L0 = L0, Lt = Lt, rho0 = rho0, tlist = tlist, **options)
+    tol = options['atol']
 
     # Generate arrays from the QGsuper input
     if L0 == None:
@@ -506,9 +507,9 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     if Lt == []:
         Bt, Dt, Gt = [], [], []
     else:
-        Bt = [x for x in Lt if np.all(np.abs(x[0].wigner_2nd_var) < tol)]
-        Dt = [x for x in Lt if np.all(np.abs(x[0].wigner_1st_var) < tol)]
-        Gt = [x for x in Lt if np.all(np.abs(x[0].wigner_0th) < tol)]
+        Bt = [[x[0].wigner_2nd_var,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_2nd_var) < tol)]
+        Dt = [[x[0].wigner_1st_var,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_1st_var) < tol)]
+        Gt = [[x[0].wigner_0th,x[1]] for x in Lt if not np.all(np.abs(x[0].wigner_0th) < tol)]
 
     ba_norm = np.empty([len(tlist)], dtype = complex)    
     ba_total = np.empty([len(tlist)], dtype = complex)
