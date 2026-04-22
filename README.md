@@ -18,6 +18,6 @@ This mixed representation results in less required memory and faster computing t
 
 <h2>Functionality</h2>
 
-Motivated by the need to model qubit measurement, the module currently includes functions that allow for the calculation of the backaction of the measurement on the qubit, as well as the measurement rate. The current functions are currently able to handle arbitrary numbers of qubits (only due to the current syntax used to specify that qubit states in these functions) and harmonic modes. These functions are restricted to steady-state solutions, with development of the time-domain functions to calculate the backaction and signal-to-noise ratio ongoing and of first and foremost priority. Other ideas to extend functionality may be found in the TODO file.
+Motivated by the need to model qubit measurement, the module currently includes functions that allow for the calculation of state of the hybrid system, along with quantities related to quantum nondemolition measurements. These functions allow for the calculatio of steady-state backaction and measurement rates, along with time-domain functions for the backaction. Efficient implementation of the signal-to-noise ratio for time-dependent systems is ongoing. Other ideas to extend functionality may be found in the TODO file. Current functionality is directed, but is not limited to, systems of qubits. 
 
 Given that this is a personal project, some bugs are to be expected. The code is therefore offered as is under the MIT license, as specified in the LICENSE file.

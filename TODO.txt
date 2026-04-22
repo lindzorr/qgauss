@@ -1,13 +1,13 @@
 #################
 ##  Functions  ##
 #################
-# Time-domain functions for the dephasing and signal-to-noise ratio.
+# Time-domain functions for the signal-to-noise ratio.
 # Improve the measurement_rate function. Currently, the required input seems a bit hacked together. Perhaps allow
 for the system and system-bath Hamiltonian to be passed as a single argument? Could also structure it so that the
 indices of the bath or system modes must be specified to remove the need to keep a strict ordering.
-# The backaction rates that are returned by the qubit dephasing function could be used to calculate the Hamiltonian
-representing the induced frequency shift on the qubits, along with the effective collapse operators for the reduced
-qubit master equation.
+# The backaction rates that are returned by the qubit dephasing function could be used to calculate the effective
+qubit Hamiltonian representing the induced frequency shift on the qubits, along with the effective collapse 
+operators for the reduced qubit master equation.
 # Constructing a Lindbladian from the input state and system-bath coupling. Also, see if it is possible at all to
 go from a Lindbladian and input-state to the system-bath coupling for the Heisenberg-Langevin equations, even if
 the solution is not unique.
@@ -23,20 +23,16 @@ plus some specific other ones like input-output, scattering, convert HLE to Lind
 also allow for different quadrature bases to be chosen, though this would require that the symplectic form also be 
 specified, since this would be required for certain operations. A con is that methods like the partial trace for the
 CV component become annoying to implement.
-# Saving the entire covariance matrix is perhaps redundant since it is by construction symmetric. Look into if this
-is worth optimizing.
-# Add ability to enter Qobj class from Qutip as the sole input, so the constructor can convert this into a 
-FLS-only QGstate. This would make it easier to construct FLS density operators, or to possibly use kets or bras for
-the FLS part, since this is already implemented well in Qutip.
 # Set dimensions and shape using input data, rather than requiring dims as input.
 # Implement magic methods. str and maybe repr, although unsure what should be displayed for str. Additional methods like
 iter, setitem, delitem. matmul and rmatmul as shorthand for added operations on the tensor structure.
 # Permute method to reorder FLS and CVS modes.
-# Add check to trace to confirm if CV Gaussian is integrable (data_2nd eigenvalues have positive real part)
+# Check that QGstate represents a real quantum state.
+# Calculate the symplectic eigenvalues of the Gaussian component. Check if Gaussian's obey the uncertainty relation.
 # Other methods/attributes to implement:
 copy() Create a copy of QGstate
 ptrace() Traces over selected mode indices listed in array. Only computable for purely fls states or cv component of states
-purity() Returns the purity of the state. Only computable for purely fls or cv states
+purity() Returns the purity of the state. Only computable for purely fls or cvs states
 isdensity Attribute, which answers: is the QGstate a true density operator?
 # Features to add to multiplication
     - Multiplication of pure FLS states, equivalent to bare matrix multiplication
@@ -51,15 +47,12 @@ combine data_0th and data_fls.
 ##  QGoper  ##
 ##############
 # Allow for conversion between "Quadrature" and "Ladder" bases for the CV component.
-# Implement ability to read-in Qobj and convert to an FLS-only QGoper.
 # The ordering of quadrature operators is fixed in the current implementation, so the commutation relations always take the form:
 	[r_j,r_k] = i*Ω_jk where the symplectic form is Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
 In order to allow for other orderings, it should be possible to submit a desired symplectic form Ω to represent alternate commutation relations.
 # Set dimensions and shape using input data, rather than requiring dims as input.
-# permute method to reorder fls and cvs modes.
+# Permute method to reorder fls and cvs modes.
 # Implement some magic methods. str, repr, maybe iter, setitem, delitem. matmul and rmatmul as tensor shorthand.
-# Figure out what to do with the symplectic form. Is creating the object everytime the constructor.
-is called a good idea, should a method/function be called instead, or should it be an attribute?
 # Confirmation: The application of the canonical commutation relation is obtained using the following:
         ½r_j*r_k*O(2)_jk 
         = ½r_j*r_k*(O(2)_jk + O(2)_jk^T)/2 + ½r_j*r_k*(O(2)_jk - O(2)_jk^T)/2 
@@ -77,12 +70,10 @@ is called a good idea, should a method/function be called instead, or should it 
 ###############
 ##  QGsuper  ##
 ###############
-# Clarify the class description, or write something better in a proper documentation file.
-# Clean up data initialisation section.
 # Find a better way to implement some of the properties. Currently they are calculated at every
-call, and are not stored otherwise. Do we really need the is2nd, is1st, is0th properties though?
+call, and are not stored otherwise.
 # Implement some magic methods. str, repr, maybe iter, setitem, delitem.
-# permute method to reorder fls and cvs modes.
+# Permute method to reorder fls and cvs modes.
 # Should we automatically symmetrise data_2nd_l and data_2nd_r through commutation relations?
 # See if we can take a set of coefficients from a Wigner PDE and back-generate the superoperator.
 # Implement iscptp property
