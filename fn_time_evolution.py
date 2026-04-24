@@ -45,7 +45,7 @@ def unitary_timeevolve(H: QGoper,
 
     ---- Output ----
     rhof : QGstate
-        The state evolved under the Hamiltonian at the give time.
+        The state evolved under the Hamiltonian at the given time.
     """
     if H.isfls:
         raise ValueError("Generator of unitary evolution cannot have FLS component.")
@@ -113,7 +113,7 @@ def lindblad_timeevolve(LV: QGsuper,
 
     ---- Output ----
     rhof : QGstate
-        The state evolved under the Lindbladian at the give time.
+        The state evolved under the Lindbladian at the given time.
     """
     if LV.isfls:
         raise ValueError("Generator of open-system evolution cannot have FLS component.")

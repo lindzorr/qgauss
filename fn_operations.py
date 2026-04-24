@@ -6,7 +6,7 @@ from scipy import linalg as la
 from .qgstate import QGstate
 from .qgoper import QGoper
 from .qgsuper import QGsuper
-from .fn_utilities import *
+from .fn_utilities import exp_integrator_phi_function
 
 __all__ = ['expect','commutator','ASp_transform']
 
@@ -37,18 +37,20 @@ def expect(oper: QGoper,
         raise ValueError("State and operator have different dimensions.")
 
     # Determine how to calculate expectation value depending on if both state and operator are FLS and/or CVS
-    if (state.isfls and not state.iscvs):
+    if state.isfls and not state.iscvs:
         return np.trace(state.data_0th @ oper.data_0th)
     
     # When CVS components are present, we must check that the state is integrable
-    if state.iscvs and state.isintegrable:
+    elif state.iscvs and state.isintegrable:
         if not state.isfls:
             return _expect_cv(state, oper)
         elif state.isfls:
             return sum(_expect_cv(state[j,k], oper[k,j])
                        for j,k in zip(np.prod(state.dims_fls[0]),np.prod(state.dims_fls[1])))
-        else:
-            raise ValueError("State is not integrable, and hence the expectation value cannot be computed.")
+    
+    # CVS-components are determined to not be integrable, and hence trace cannot be performed
+    else:
+        raise ValueError("State is not integrable, and hence the expectation value cannot be computed.")
 
 
 def _expect_cv(state: QGstate, oper: QGoper):

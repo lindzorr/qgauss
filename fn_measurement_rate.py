@@ -6,7 +6,7 @@ from scipy import linalg as la
 
 from .qgstate import QGstate
 from .qgoper import QGoper
-from .fn_utilities import *
+from .fn_utilities import symplectic_form
 
 __all__ = ['measurement_rate','output_state']
 
