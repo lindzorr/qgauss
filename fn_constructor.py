@@ -92,8 +92,8 @@ def basis_state(m: int, N: int = 1) -> QGoper:
     # while |N-1><N-1| is in the upper-left corner of the data matrix.
     data = np.zeros((N, N))
     data[N-m-1,N-m-1] = 1
-    return QGstate(data_0th = data, 
-                  dims_fls = [[N],[N]])
+    return QGstate(data_0th = data,
+                   dims_fls = [[N],[N]])
 
 '''
 ---------------
@@ -116,41 +116,51 @@ def identity_cvs(N: int = 1) -> QGoper:
     return QGoper(data_0th = np.array([1.]), 
                   dims_cvs = N)
 
-def destroy(M: int = 1, N: int = 1) -> QGoper:
+def destroy(M: int = 1, N: int = None) -> QGoper:
     # Single mode annihilation operator for the Mth mode in an N-mode continuous-variable system.
+    if N is None: 
+        N = M
     data = np.zeros(2*N, dtype = complex)
     data[2*M-2:2*M] = np.array([1,1j])/np.sqrt(2)
     return QGoper(data_1st = data, 
-                  dims_cvs = M)
+                  dims_cvs = N)
 
-def create(M: int = 1, N: int = 1) -> QGoper:
+def create(M: int = 1, N: int = None) -> QGoper:
     # Single mode creation operator for the Mth mode in an N-mode continuous-variable system.
+    if N is None: 
+        N = M
     data = np.zeros(2*N, dtype = complex)
     data[2*M-2:2*M] = np.array([1,-1j])/np.sqrt(2)
     return QGoper(data_1st = data, 
-                  dims_cvs = 1)
+                  dims_cvs = N)
 
-def position(M: int = 1, N: int = 1) -> QGoper:
+def position(M: int = 1, N: int = None) -> QGoper:
     # Single mode position operator for the Mth mode in an N-mode continuous-variable system.
+    if N is None: 
+        N = M
     data = np.zeros(2*N, dtype = complex)
     data[2*M-2:2*M] = np.array([1,0])
     return QGoper(data_1st = data, 
-                  dims_cvs = 1)
+                  dims_cvs = N)
     
-def momentum(M: int = 1, N: int = 1) -> QGoper:
+def momentum(M: int = 1, N: int = None) -> QGoper:
     # Single mode momentum operator for the Mth mode in an N-mode continuous-variable system.
+    if N is None: 
+        N = M
     data = np.zeros(2*N, dtype = complex)
     data[2*M-2:2*M] = np.array([0,1])
     return QGoper(data_1st = data, 
-                  dims_cvs = 1)
+                  dims_cvs = N)
 
-def num(M: int = 1, N: int = 1) -> QGoper:
+def num(M: int = 1, N: int = None) -> QGoper:
     # Single mode number operator for the Mth mode in an N-mode continuous-variable system.
+    if N is None: 
+        N = M
     data = np.zeros((2*N,2*N), dtype = complex)
     data[2*M-2:2*M,2*M-2:2*M] = np.array([[1,0],[0,1]])
     return QGoper(data_2nd = data, 
                   data_0th = -1/2, 
-                  dims_cvs = 1)
+                  dims_cvs = N)
 
 def identity_fls(dims: int | list[int] | npt.NDArray[int] = 1) -> QGoper:
     # N-by-N identity operator for a finite-level system, where N may an integer or list of integers
@@ -171,10 +181,12 @@ def qzero(N: int = 1) -> QGoper:
     return QGoper(data_0th = np.zeros(N), 
                   dims_fls = [[N],[N]])
 
-def basis_oper(m: int, N: int = 1) -> QGoper:
+def basis_oper(m: int, N: int = None) -> QGoper:
     # N-by-N operator corresponding to the outer product of a single basis vector, |m><m|.
     # To obey the convention used here for FLs operators, |0><0| has a one in the lower-right corner,
     # while |N-1><N-1| is in the upper-left corner of the data matrix.
+    if N is None: 
+        N = m
     data = np.zeros((N, N))
     data[N-m-1,N-m-1] = 1
     return QGoper(data_0th = data, 
