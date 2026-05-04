@@ -5,39 +5,38 @@
 # Improve the measurement_rate function. Currently, the required input seems a bit hacked together. Perhaps allow
 for the system and system-bath Hamiltonian to be passed as a single argument? Could also structure it so that the
 indices of the bath or system modes must be specified to remove the need to keep a strict ordering.
-# The backaction rates that are returned by the qubit dephasing function could be used to calculate the effective
-qubit Hamiltonian representing the induced frequency shift on the qubits, along with the effective collapse 
-operators for the reduced qubit master equation.
+# The backaction rates that are returned by the qubit dephasing function could be used to calculate the Hamiltonian
+representing the induced frequency shift on the qubits, along with the effective collapse operators for the reduced
+qubit master equation.
 # Constructing a Lindbladian from the input state and system-bath coupling. Also, see if it is possible at all to
 go from a Lindbladian and input-state to the system-bath coupling for the Heisenberg-Langevin equations, even if
 the solution is not unique.
 # The Heisenberg-Langevin equations should be their own class made of an amalgam of the other three base classes,
 plus some specific other ones like input-output, scattering, convert HLE to Lindblad.
+# Maybe allow for the conversion of Qutip Qobj's into the base Qgauss classes. Also, possibly convert the three base
+classes into Qobj.
 
 
 
 ###############
 ##  QGstate  ##
 ###############
-# To-consider: Maybe make is possible to switch between "Quadrature" and "Ladder" bases for the CV component. Maybe 
+# To-consider: Maybe make is possible to switch between "Quadrature" and "Ladder" bases for the CVSS component? Maybe 
 also allow for different quadrature bases to be chosen, though this would require that the symplectic form also be 
 specified, since this would be required for certain operations. A con is that methods like the partial trace for the
 CV component become annoying to implement.
-# Set dimensions and shape using input data, rather than requiring dims as input.
 # Implement magic methods. str and maybe repr, although unsure what should be displayed for str. Additional methods like
 iter, setitem, delitem. matmul and rmatmul as shorthand for added operations on the tensor structure.
 # Permute method to reorder FLS and CVS modes.
-# Check that QGstate represents a real quantum state.
-# Calculate the symplectic eigenvalues of the Gaussian component. Check if Gaussian's obey the uncertainty relation.
 # Other methods/attributes to implement:
 copy() Create a copy of QGstate
-ptrace() Traces over selected mode indices listed in array. Only computable for purely fls states or cv component of states
-purity() Returns the purity of the state. Only computable for purely fls or cvs states
+ptrace() Traces over selected mode indices listed in array. Only computable for purely FLS states or CVS component of states
+purity() Returns the purity of the state. Only computable for purely FLS or CVS states
 isdensity Attribute, which answers: is the QGstate a true density operator?
 # Features to add to multiplication
     - Multiplication of pure FLS states, equivalent to bare matrix multiplication
-    - Multiplication of pure CV states, equivalent to Moyal product between Gaussian Wigner distributions
-# Figure out how to better handle multiplying a CV-only QGstate by negative numbers. Possible workaround is 
+    - Multiplication of pure CVSS states, equivalent to Moyal product between Gaussian Wigner distributions
+# Figure out how to better handle multiplying a CVS-only QGstate by negative numbers. Possible workaround is 
 to not use the zeroth-order cumulant, but instead the zeroth-order moment/total mass. This may be a good reason to 
 combine data_0th and data_fls.
 	
@@ -46,12 +45,11 @@ combine data_0th and data_fls.
 ##############
 ##  QGoper  ##
 ##############
-# Allow for conversion between "Quadrature" and "Ladder" bases for the CV component.
+# Allow for conversion between "Quadrature" and "Ladder" bases for the CV component?
 # The ordering of quadrature operators is fixed in the current implementation, so the commutation relations always take the form:
 	[r_j,r_k] = i*Ω_jk where the symplectic form is Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
 In order to allow for other orderings, it should be possible to submit a desired symplectic form Ω to represent alternate commutation relations.
-# Set dimensions and shape using input data, rather than requiring dims as input.
-# Permute method to reorder fls and cvs modes.
+# {ermute method to reorder FLS and CVS modes.
 # Implement some magic methods. str, repr, maybe iter, setitem, delitem. matmul and rmatmul as tensor shorthand.
 # Confirmation: The application of the canonical commutation relation is obtained using the following:
         ½r_j*r_k*O(2)_jk 
@@ -70,10 +68,8 @@ In order to allow for other orderings, it should be possible to submit a desired
 ###############
 ##  QGsuper  ##
 ###############
-# Find a better way to implement some of the properties. Currently they are calculated at every
-call, and are not stored otherwise.
 # Implement some magic methods. str, repr, maybe iter, setitem, delitem.
-# Permute method to reorder fls and cvs modes.
+# Permute method to reorder FLS and CVS modes.
 # Should we automatically symmetrise data_2nd_l and data_2nd_r through commutation relations?
 # See if we can take a set of coefficients from a Wigner PDE and back-generate the superoperator.
 # Implement iscptp property

@@ -11,10 +11,11 @@ class Settings:
     rtol : float
         Relative tolerance used in numerical comparisons.
     auto_tidyup : bool
-        If True, elements smaller in magnitude than auto_tidyup_atol are removed when creating 
-        QGstates, QGopers, and QGsupers.
+        If True, elements smaller in magnitude than auto_tidyup_atol are 
+        removed when creating QGstates, QGopers, and QGsupers.
     tidyup_atol : float
-        Defauly lower limit magnitude for array elements, below which they are considered zero in tidyup operations.
+        Defauly lower limit magnitude for array elements, below which they are 
+        considered zero in tidyup operations.
 
     """
     def __init__(self,
@@ -30,7 +31,8 @@ class Settings:
         self.tidyup_atol = tidyup_atol
 
     def update(self, **kwargs: Any) -> None:
-        """ Update settings from keyword arguments, for example: settings.update(atol=1e-10, auto_tidyup=False) """
+        """ Update settings from keyword arguments, for example: 
+        settings.update(atol=1e-10, auto_tidyup=False) """
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
