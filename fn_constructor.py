@@ -24,66 +24,68 @@ __all__ = ['vacuum','thermal','displaced','sm_squeeze','tm_squeeze',
 
 def vacuum(N = 1) -> QGstate:
     # N-mode vacuum state
-    return QGstate(data_2nd = 0.5*np.identity(2*N), 
+    return QGstate(data_2nd = (1/2)*np.identity(2*N), 
                    dims_cvs = N)
 
 def thermal(*nth: float | list[float] | npt.NDArray[float]) -> QGstate:
     # N-mode thermal state, with occupancies "nth"
     if not nth:
-        nth = 0
+        _nth = 0
     elif len(nth) == 1 and isinstance(nth[0], (numbers.Number, np.number)):
-        nth = np.asarray([nth[0]])
+        _nth = np.asarray([nth[0]])
     elif len(nth) == 1 and isinstance(nth[0], list | np.ndarray):
-        nth = np.asarray(nth[0])
-    return QGstate(data_2nd = np.kron(np.diag(nth) + 0.5*np.identity(len(nth)),
+        _nth = np.asarray(nth[0])
+    return QGstate(data_2nd = np.kron(np.diag(_nth) + (1/2)*np.identity(len(_nth)),
                                       np.identity(2)),
-                   dims_cvs = len(nth))
+                   dims_cvs = len(_nth))
 
 def displaced(alpha: complex | list[float] | npt.NDArray[float] = None
               ) -> QGstate:
     # Single mode coherent/displaced vacuum state
     if alpha is None:
-        q, p = 0, 0
+        _q, _p = 0, 0
     elif isinstance(alpha, (numbers.Number, np.number)):
-        q, p = np.real(alpha), np.imag(alpha)
+        _q, _p = np.real(alpha), np.imag(alpha)
     elif isinstance(alpha, np.ndarray | list) and len(alpha) == 2:
-        q, p = alpha[0], alpha[1]
-    return QGstate(data_2nd = 0.5*np.identity(2),
-                   data_1st = np.array([q,p]),
+        _q, _p = alpha[0], alpha[1]
+    return QGstate(data_2nd = (1/2)*np.identity(2),
+                   data_1st = np.array([_q,_p]),
                    dims_cvs = 1)
 
 def sm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
                ) -> QGstate:
     # Single-mode squeezed state
     if sqz is None:
-        r, t = 0, 0
+        _r, _t = 0, 0
     elif isinstance(sqz, (numbers.Number, np.number)):
-        r, t = np.abs(sqz), np.angle(sqz)
+        _r, _t = np.abs(sqz), np.angle(sqz)
     elif isinstance(sqz, np.ndarray | list) and len(sqz) == 2:
-        r, t = sqz[0], sqz[1]
+        _r, _t = sqz[0], sqz[1]
 
-    cov = 0.5*np.array([[np.cosh(2*r) + np.cos(t)*np.sinh(2*r), -np.sin(t)*np.sinh(2*r)],
-                        [-np.sin(t)*np.sinh(2*r), np.cosh(2*r) - np.cos(t)*np.sinh(2*r)]])
+    _cov = \
+    (1/2)*np.array([[np.cosh(2*_r) + np.cos(_t)*np.sinh(2*_r), -np.sin(_t)*np.sinh(2*_r)],
+                    [-np.sin(_t)*np.sinh(2*_r), np.cosh(2*_r) - np.cos(_t)*np.sinh(2*_r)]])
     
-    return QGstate(data_2nd = cov,
+    return QGstate(data_2nd = _cov,
                    dims_cvs = 1)
 
 def tm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
                ) -> QGstate:
     # Two-mode squeezed state
     if sqz is None:
-        r, t = 0, 0
+        _r, _t = 0, 0
     elif isinstance(sqz, (numbers.Number, np.number)):
-        r, t = np.abs(sqz), np.angle(sqz)
+        _r, _t = np.abs(sqz), np.angle(sqz)
     elif isinstance(sqz, np.ndarray | list) and len(sqz) == 2:
-        r, t = sqz[0], sqz[1]
+        _r, _t = sqz[0], sqz[1]
 
-    cov = 0.5*np.array([[np.cosh(2*r), 0, -np.cos(t)*np.sinh(2*r), -np.sin(t)*np.sinh(2*r)],
-                        [0, np.cosh(2*r), -np.sin(t)*np.sinh(2*r), +np.cos(t)*np.sinh(2*r)],
-                        [-np.cos(t)*np.sinh(2*r), -np.sin(t)*np.sinh(2*r), np.cosh(2*r), 0],
-                        [-np.sin(t)*np.sinh(2*r), +np.cos(t)*np.sinh(2*r), 0, np.cosh(2*r)]])
+    _cov = \
+    (1/2)*np.array([[np.cosh(2*_r), 0, -np.cos(_t)*np.sinh(2*_r), -np.sin(_t)*np.sinh(2*_r)],
+                    [0, np.cosh(2*_r), -np.sin(_t)*np.sinh(2*_r), +np.cos(_t)*np.sinh(2*_r)],
+                    [-np.cos(_t)*np.sinh(2*_r), -np.sin(_t)*np.sinh(2*_r), np.cosh(2*_r), 0],
+                    [-np.sin(_t)*np.sinh(2*_r), +np.cos(_t)*np.sinh(2*_r), 0, np.cosh(2*_r)]])
     
-    return QGstate(data_2nd = cov,
+    return QGstate(data_2nd = _cov,
                    dims_cvs = 2)
 
 def qubit_excited() -> QGstate:
@@ -101,9 +103,9 @@ def basis_state(m: int, N: int = 1) -> QGoper:
     # |m><m|. To obey the convention used here for FLs operators, |0><0| has a 
     # one in the lower-right corner, while |N-1><N-1| is in the upper-left 
     # corner of the data matrix.
-    data = np.zeros((N, N))
-    data[N-m-1,N-m-1] = 1
-    return QGstate(data_0th = data,
+    _data = np.zeros((N, N))
+    _data[N-m-1,N-m-1] = 1
+    return QGstate(data_0th = _data,
                    dims_fls = [[N],[N]])
 
 '''
@@ -132,9 +134,9 @@ def destroy(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
-    data = np.zeros(2*N, dtype = complex)
-    data[2*M-2:2*M] = np.array([1,1j])/np.sqrt(2)
-    return QGoper(data_1st = data, 
+    _data = np.zeros(2*N, dtype = complex)
+    _data[2*M-2:2*M] = np.array([1,1j])/np.sqrt(2)
+    return QGoper(data_1st = _data, 
                   dims_cvs = N)
 
 def create(M: int = 1, N: int = None) -> QGoper:
@@ -142,9 +144,9 @@ def create(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
-    data = np.zeros(2*N, dtype = complex)
-    data[2*M-2:2*M] = np.array([1,-1j])/np.sqrt(2)
-    return QGoper(data_1st = data, 
+    _data = np.zeros(2*N, dtype = complex)
+    _data[2*M-2:2*M] = np.array([1,-1j])/np.sqrt(2)
+    return QGoper(data_1st = _data, 
                   dims_cvs = N)
 
 def position(M: int = 1, N: int = None) -> QGoper:
@@ -152,9 +154,9 @@ def position(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
-    data = np.zeros(2*N, dtype = complex)
-    data[2*M-2:2*M] = np.array([1,0])
-    return QGoper(data_1st = data, 
+    _data = np.zeros(2*N, dtype = complex)
+    _data[2*M-2:2*M] = np.array([1,0])
+    return QGoper(data_1st = _data, 
                   dims_cvs = N)
     
 def momentum(M: int = 1, N: int = None) -> QGoper:
@@ -162,9 +164,9 @@ def momentum(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
-    data = np.zeros(2*N, dtype = complex)
-    data[2*M-2:2*M] = np.array([0,1])
-    return QGoper(data_1st = data, 
+    _data = np.zeros(2*N, dtype = complex)
+    _data[2*M-2:2*M] = np.array([0,1])
+    return QGoper(data_1st = _data, 
                   dims_cvs = N)
 
 def num(M: int = 1, N: int = None) -> QGoper:
@@ -172,9 +174,9 @@ def num(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
-    data = np.zeros((2*N,2*N), dtype = complex)
-    data[2*M-2:2*M,2*M-2:2*M] = np.array([[1,0],[0,1]])
-    return QGoper(data_2nd = data, 
+    _data = np.zeros((2*N,2*N), dtype = complex)
+    _data[2*M-2:2*M,2*M-2:2*M] = np.array([[1,0],[0,1]])
+    return QGoper(data_2nd = _data, 
                   data_0th = -1/2, 
                   dims_cvs = N)
 
@@ -205,9 +207,9 @@ def basis_oper(m: int, N: int = None) -> QGoper:
     # corner of the data matrix.
     if N is None: 
         N = m
-    data = np.zeros((N, N))
-    data[N-m-1,N-m-1] = 1
-    return QGoper(data_0th = data, 
+    _data = np.zeros((N, N))
+    _data[N-m-1,N-m-1] = 1
+    return QGoper(data_0th = _data, 
                   dims_fls = [[N],[N]])
 
 def sigmam() -> QGoper:
@@ -244,28 +246,28 @@ def jmat(j, comp: str) -> QGoper:
         raise TypeError("The total spin j can only take integer or half-integer values.")
 
     if comp == '+':
-        data = np.diag([np.sqrt(j*(j+1)-m*(m+1)) 
-                        for m in np.arange(j-1,-j-1,-1)], k=1)
+        _data = np.diag([np.sqrt(j*(j+1)-m*(m+1))
+                         for m in np.arange(j-1,-j-1,-1)], k=1)
     elif comp == '-':
-        data = np.diag([np.sqrt(j*(j+1)-m*(m-1)) 
-                        for m in np.arange(j,-j,-1)], k=-1)
+        _data = np.diag([np.sqrt(j*(j+1)-m*(m-1))
+                         for m in np.arange(j,-j,-1)], k=-1)
     elif comp == 'x':
-        data = 0.5*(np.diag([np.sqrt(j*(j+1)-m*(m+1)) 
-                             for m in np.arange(j-1,-j-1,-1)], k=1)
-                    + np.diag([np.sqrt(j*(j+1)-m*(m-1)) 
-                               for m in np.arange(j,-j,-1)], k=-1))
+        _data = (1/2)*(np.diag([np.sqrt(j*(j+1)-m*(m+1))
+                                for m in np.arange(j-1,-j-1,-1)], k=1)
+                       + np.diag([np.sqrt(j*(j+1)-m*(m-1))
+                                  for m in np.arange(j,-j,-1)], k=-1))
     elif comp == 'y':
-        data = -0.5j*(np.diag([np.sqrt(j*(j+1)-m*(m+1)) 
-                               for m in np.arange(j-1,-j-1,-1)], k=1)
-                      - np.diag([np.sqrt(j*(j+1)-m*(m-1)) 
-                                 for m in np.arange(j,-j,-1)], k=-1))
+        _data = -(1j/2)*(np.diag([np.sqrt(j*(j+1)-m*(m+1)) 
+                                  for m in np.arange(j-1,-j-1,-1)], k=1)
+                         - np.diag([np.sqrt(j*(j+1)-m*(m-1)) 
+                                    for m in np.arange(j,-j,-1)], k=-1))
     elif comp == 'z':
-        data = np.diag([m for m in np.arange(j,-j-1,-1)])
+        _data = np.diag([m for m in np.arange(j,-j-1,-1)])
     elif comp == 'tot':
-        data = j*(j+1)*np.identity(int(2*j+1))
+        _data = j*(j+1)*np.identity(int(2*j+1))
     else:
         raise TypeError("A valid component of the spin must be provided. " \
         "Choose one of ['+','-','x','y','z','tot'].")
                         
-    return QGoper(data_0th = data,
+    return QGoper(data_0th = _data,
                   dims_fls = [[int(2*j+1)],[int(2*j+1)]])

@@ -54,7 +54,7 @@ def expect(oper: QGoper,
             return sum(_expect_cv(state[j,k], oper[k,j])
                        for j,k in zip(np.prod(state.dims_fls[0]),
                                       np.prod(state.dims_fls[1]))
-                                      )
+                       )
         else:
             raise ValueError("State is not integrable, and hence the " \
             "expectation value cannot be computed.")
@@ -169,19 +169,19 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
         "symplectic-affine transformation have different dimensions.")
     
     # Construct elements of the symplectic-affine transformation
-    S = la.expm(gen_oper.symform @ gen_oper.data_2nd)
-    d = (exp_integrator_phi_function(gen_oper.symform @ gen_oper.data_2nd) 
-         @ gen_oper.symform @ gen_oper.data_1st)
+    _S = la.expm(gen_oper.symform @ gen_oper.data_2nd)
+    _d = (exp_integrator_phi_function(gen_oper.symform @ gen_oper.data_2nd)
+          @ gen_oper.symform @ gen_oper.data_1st)
 
     if isinstance(input, QGstate):
         if not input.isfls:
-            _out_data_2nd = S @ input.data_2nd @ np.transpose(S)
-            _out_data_1st = S @ input.data_1st + d
+            _out_data_2nd = _S @ input.data_2nd @ np.transpose(_S)
+            _out_data_1st = _S @ input.data_1st + _d
         else:
-            _out_data_2nd = np.array([[(S @ input[j,k].data_2nd @ np.transpose(S))
+            _out_data_2nd = np.array([[(_S @ input[j,k].data_2nd @ np.transpose(_S))
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
-            _out_data_1st = np.array([[(S @ input[j,k].data_1st + d)
+            _out_data_1st = np.array([[(_S @ input[j,k].data_1st + _d)
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
 
@@ -194,24 +194,24 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
 
     elif isinstance(input, QGoper):
         if not input.isfls:
-            _out_data_2nd = np.transpose(S) @ input.data_2nd @ S
-            _out_data_1st = ((1/2)*(np.transpose(S) @ input.data_2nd @ d)
-                             + (1/2)*(d @ input.data_2nd @ S) 
-                             + (input.data_1st @ S))
-            _out_data_0th = ((1/2)*(d @ input.data_2nd @ d) 
-                             + (input.data_1st @ d) 
+            _out_data_2nd = np.transpose(_S) @ input.data_2nd @ _S
+            _out_data_1st = ((1/2)*(np.transpose(_S) @ input.data_2nd @ _d)
+                             + (1/2)*(_d @ input.data_2nd @ _S) 
+                             + (input.data_1st @ _S))
+            _out_data_0th = ((1/2)*(_d @ input.data_2nd @ _d) 
+                             + (input.data_1st @ _d) 
                              + input.data_0th)
         else:
-            _out_data_2nd = np.array([[(np.transpose(S) @ input.data_2nd[j,k] @ S)
+            _out_data_2nd = np.array([[(np.transpose(_S) @ input.data_2nd[j,k] @ _S)
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
-            _out_data_1st = np.array([[((1/2)*(np.transpose(S) @ input.data_2nd[j,k] @ d)
-                                        + (1/2)*(d @ input.data_2nd[j,k] @ S)
-                                        + (input.data_1st[j,k] @ S))
+            _out_data_1st = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd[j,k] @ _d)
+                                        + (1/2)*(_d @ input.data_2nd[j,k] @ _S)
+                                        + (input.data_1st[j,k] @ _S))
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
-            _out_data_0th = np.array([[((1/2)*(d @ input.data_2nd[j,k] @ d)
-                                        + (input.data_1st[j,k] @ d)
+            _out_data_0th = np.array([[((1/2)*(_d @ input.data_2nd[j,k] @ _d)
+                                        + (input.data_1st[j,k] @ _d)
                                         + input.data_0th[j,k])
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
@@ -225,50 +225,50 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
     
     elif isinstance(input, QGsuper):
         if not input.isfls:
-            _out_data_2nd_l = np.transpose(S) @ input.data_2nd_l @ S
-            _out_data_2nd_r = np.transpose(S) @ input.data_2nd_r @ S
-            _out_data_2nd_m = np.transpose(S) @ input.data_2nd_m @ S
-            _out_data_1st_l = ((1/2)*(np.transpose(S) @ input.data_2nd_l @ d)
-                               + (1/2)*(d @ input.data_2nd_l @ S) 
-                               + (d @ input.data_2nd_m @ S) 
-                               + (input.data_1st_l @ S))
-            _out_data_1st_r = ((1/2)*(np.transpose(S) @ input.data_2nd_r @ d)
-                               + (1/2)*(d @ input.data_2nd_r @ S) 
-                               + (np.transpose(S) @ input.data_2nd_m @ d) 
-                               + (input.data_1st_r @ S))
-            _out_data_0th = ((1/2)*(d @ input.data_2nd_l @ d) 
-                             + (1/2)*(d @ input.data_2nd_r @ d)
-                             + (d @ input.data_2nd_m @ d) 
-                             + (input.data_1st_l @ d) 
-                             + (input.data_1st_r @ d)
+            _out_data_2nd_l = np.transpose(_S) @ input.data_2nd_l @ _S
+            _out_data_2nd_r = np.transpose(_S) @ input.data_2nd_r @ _S
+            _out_data_2nd_m = np.transpose(_S) @ input.data_2nd_m @ _S
+            _out_data_1st_l = ((1/2)*(np.transpose(_S) @ input.data_2nd_l @ _d)
+                               + (1/2)*(_d @ input.data_2nd_l @ _S) 
+                               + (_d @ input.data_2nd_m @ _S) 
+                               + (input.data_1st_l @ _S))
+            _out_data_1st_r = ((1/2)*(np.transpose(_S) @ input.data_2nd_r @ _d)
+                               + (1/2)*(_d @ input.data_2nd_r @ _S) 
+                               + (np.transpose(_S) @ input.data_2nd_m @ _d) 
+                               + (input.data_1st_r @ _S))
+            _out_data_0th = ((1/2)*(_d @ input.data_2nd_l @ _d) 
+                             + (1/2)*(_d @ input.data_2nd_r @ _d)
+                             + (_d @ input.data_2nd_m @ _d) 
+                             + (input.data_1st_l @ _d) 
+                             + (input.data_1st_r @ _d)
                              + input.data_0th)
         else:
-            _out_data_2nd_l = np.array([[(np.transpose(S) @ input.data_2nd_l[j,k] @ S)
+            _out_data_2nd_l = np.array([[(np.transpose(_S) @ input.data_2nd_l[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_2nd_r = np.array([[(np.transpose(S) @ input.data_2nd_r[j,k] @ S)
+            _out_data_2nd_r = np.array([[(np.transpose(_S) @ input.data_2nd_r[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_2nd_m = np.array([[(np.transpose(S) @ input.data_2nd_m[j,k] @ S)
+            _out_data_2nd_m = np.array([[(np.transpose(_S) @ input.data_2nd_m[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_1st_l = np.array([[((1/2)*(np.transpose(S) @ input.data_2nd_l[j,k] @ d)
-                                          + (1/2)*(d @ input.data_2nd_l[j,k] @ S)
-                                          + (d @ input.data_2nd_m[j,k] @ S)
-                                          + (input.data_1st_l[j,k] @ S))
+            _out_data_1st_l = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd_l[j,k] @ _d)
+                                          + (1/2)*(_d @ input.data_2nd_l[j,k] @ _S)
+                                          + (_d @ input.data_2nd_m[j,k] @ _S)
+                                          + (input.data_1st_l[j,k] @ _S))
                                           for k in range(input.shape_0th[1])]
                                           for j in range(input.shape_0th[0])])
-            _out_data_1st_r = np.array([[((1/2)*(np.transpose(S) @ input.data_2nd_r[j,k] @ d)
-                                          + (1/2)*(d @ input.data_2nd_r[j,k] @ S)
-                                          + (np.transpose(S) @ input.data_2nd_m[j,k] @ d)
-                                          + (input.data_1st_r[j,k] @ S))
+            _out_data_1st_r = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd_r[j,k] @ _d)
+                                          + (1/2)*(_d @ input.data_2nd_r[j,k] @ _S)
+                                          + (np.transpose(_S) @ input.data_2nd_m[j,k] @ _d)
+                                          + (input.data_1st_r[j,k] @ _S))
                                           for k in range(input.shape_0th[1])]
                                           for j in range(input.shape_0th[0])])
-            _out_data_0th = np.array([[((1/2)*(d @ input.data_2nd_l[j,k] @ d)
-                                        + (1/2)*(d @ input.data_2nd_r[j,k] @ d)
-                                        + (d @ input.data_2nd_m[j,k] @ d)
-                                        + (input.data_1st_l[j,k] @ d)
-                                        + (input.data_1st_r[j,k] @ d)
+            _out_data_0th = np.array([[((1/2)*(_d @ input.data_2nd_l[j,k] @ _d)
+                                        + (1/2)*(_d @ input.data_2nd_r[j,k] @ _d)
+                                        + (_d @ input.data_2nd_m[j,k] @ _d)
+                                        + (input.data_1st_l[j,k] @ _d)
+                                        + (input.data_1st_r[j,k] @ _d)
                                         + input.data_0th[j,k])
                                         for k in range(input.shape_0th[1])]
                                         for j in range(input.shape_0th[0])])

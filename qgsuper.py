@@ -14,11 +14,11 @@ class QGsuper(object):
     """
     ---- Structure ----
     A class for representing superoperators using a mixed representation for 
-    systems comprised of continuous variable (CV) quadrature operators up to 
-    quadratic/bilinear order and operators acting on finite-level systems (FLS). 
-    The FLS component of the superoperator, if it exists, is vectorized in the 
-    usual manner. Since the CV component of the operator does not use a Fock 
-    state representation, vectorisation is not possible on this part, so 
+    systems comprised of continuous variable system (CVS) quadrature operators 
+    up to quadratic/bilinear order and operators acting on finite-level systems 
+    (FLS). The FLS component of the superoperator, if it exists, is vectorized 
+    in the usual manner. Since the CV component of the operator does not use a 
+    Fock state representation, vectorisation is not possible on this part, so 
     coefficients representing left and right multiplication of the state by the 
     quadrature operators are kept separate from each other. Left and right 
     multiplications of the density operator ρ may be represented as matrix 
@@ -28,7 +28,7 @@ class QGsuper(object):
     As a result, combining left and right multiplication yields 
         AρB  -->  (B^T ⊗ A)|ρ⟩⟩. 
     The transposition operation is only applied at the FLS-level of the data 
-    structures, with the CV-level left untouched. The column-stacking procedure 
+    structures, with the CVS-level left untouched. The column-stacking procedure 
     for vectorisation used by Qutip and other packages has been used here, which 
     can visualized as follows:
         ρ = [[1,3],  -->  |ρ⟩⟩ = [1,2,3,4]^T
@@ -161,7 +161,7 @@ class QGsuper(object):
     shape_0th : tuple
         Underlying shape of data_0th.
     iscvs : bool
-        Does QGsuper have a CV component.
+        Does QGsuper have a CVS component.
     isfls : bool
         Does QGsuper have an FLS component.
     is2nd : bool
@@ -173,7 +173,7 @@ class QGsuper(object):
     iscoherent : bool
         Does QGsuper correspond to coherent/unitary evolution.
     isgauss : bool
-        Does the total dynamics preserve the Gaussian nature the 
+        Does the total dynamics preserve the Gaussian nature of the 
         superposition FLS-CVS state.
     issubgauss : bool
         Does the dynamics preserve the Gaussian nature of a CVS subcomponent of 
@@ -182,7 +182,7 @@ class QGsuper(object):
         number indicating the position on the FLS-level of the total state. The 
         isgauss property uses this to check the preoprty for the total QGsuper.
     symform : array
-        Symplectic form, for a system with N = dims_cvs this has the form: 
+        Symplectic form, for a system with N = dims_cvs, which has the form: : 
         Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
 
     ---- Methods ----
@@ -194,13 +194,13 @@ class QGsuper(object):
         Multiplication/division of QGsuper by a scaler.
     eq : (QGsuper, QGsuper) -> bool
         Check equality of two QGsupers.
-    getitem : (QGsuper, list[int]) -> QGsuper (CV)
-        Extract elements of QGsuper with FLS and CV component, to create 
+    getitem : (QGsuper, list[int]) -> QGsuper (CVS)
+        Extract elements of QGsuper with FLS and CVS component, to create 
         a CV-only QGsuper.
     drop : (QGsuper, int | array[int] | tuple[int]) -> QGsuper
-        Remove all specified CV modes from QGoper. 
+        Remove all specified CVS modes from QGoper. 
     keep : (QGsuper, int | array[int] | tuple[int]) -> QGsuper
-        Keep only the specified CV modes in QGsuper.     
+        Keep only the specified CVS modes in QGsuper.     
     conj : QGsuper -> QGsuper
         Complex-conjugate of all elements of QGsuper.
     trans : QGsuper -> QGsuper
@@ -282,7 +282,7 @@ class QGsuper(object):
         elif data is None:
             self._data_2nd_l = np.zeros(self.shape_2nd, dtype=complex)
         else:
-            raise TypeError("Input of data_2nd_l is not of a supported type: array or list.")
+            raise TypeError("data_2nd_l is not of a supported type: array or list.")
         self._invalidate_wigner('2nd')
         self._invalidate_order('2nd')
 
@@ -301,7 +301,7 @@ class QGsuper(object):
         elif data is None:
             self._data_2nd_r = np.zeros(self.shape_2nd, dtype=complex)
         else:
-            raise TypeError("Input of data_2nd_r is not of a supported type: array or list.")
+            raise TypeError("data_2nd_r is not of a supported type: array or list.")
         self._invalidate_wigner('2nd')
         self._invalidate_order('2nd')
 
@@ -320,7 +320,7 @@ class QGsuper(object):
         elif data is None:
             self._data_2nd_m = np.zeros(self.shape_2nd, dtype=complex)
         else:
-            raise TypeError("Input of data_2nd_m is not of a supported type: array or list.")
+            raise TypeError("data_2nd_m is not of a supported type: array or list.")
         self._invalidate_wigner('2nd')
         self._invalidate_order('2nd')
     
@@ -339,7 +339,7 @@ class QGsuper(object):
         elif data is None:
             self._data_1st_l = np.zeros(self.shape_1st, dtype=complex)
         else:
-            raise TypeError("Input of data_1st_l is not of a supported type: array or list.")
+            raise TypeError("data_1st_l is not of a supported type: array or list.")
         self._invalidate_wigner('1st')
         self._invalidate_order('1st')
         
@@ -358,7 +358,7 @@ class QGsuper(object):
         elif data is None:
             self._data_1st_r = np.zeros(self.shape_1st, dtype=complex)
         else:
-            raise TypeError("Input of data_1st_r is not of a supported type: array or list.")
+            raise TypeError("data_1st_r is not of a supported type: array or list.")
         self._invalidate_wigner('1st')
         self._invalidate_order('1st')
         
@@ -381,7 +381,7 @@ class QGsuper(object):
         elif data is None:
                 self._data_0th = np.zeros(self.shape_0th, dtype = complex)
         else:
-            raise TypeError("Input of data_0th is not of a supported type: array, list, or number.")
+            raise TypeError("data_0th is not of a supported type: array, list, or number.")
         self._invalidate_wigner('0th')
         self._invalidate_order('0th')
     
@@ -514,7 +514,7 @@ class QGsuper(object):
         elif dims is None:
             self._dims_cvs = 0
         else:
-            raise TypeError("Input to dims_cvs is not of a supported type: number.")
+            raise TypeError("dims_cvs is not of a supported type: number.")
         # Set iscvs propert
         self.iscvs = dims
         
@@ -528,7 +528,7 @@ class QGsuper(object):
         elif dims is None:
             self._dims_fls = [[[],[]],[[],[]]]
         else:
-            raise TypeError("Input to dims_fls is not of a supported type: array or list.")
+            raise TypeError("dims_fls is not of a supported type: array or list.")
         # Set isfls propert
         self.isfls = dims
 
@@ -646,15 +646,15 @@ class QGsuper(object):
             return True
         else:
             return all([self.issubgauss(j) 
-                        for j in range(np.prod(self.dims_fls[1]))])
+                        for j in range(np.prod(self.dims_fls[0]))])
 
     def issubgauss(self, row: int, col: int = None) -> bool:
-        """ Checks that the dynamics of CV-component of input QGsuper are 
+        """ Checks that the dynamics of a subcomponent of the QGsuper is
         Gaussian by ensuring that there is no coupling to other elements of the 
-        qubit-density operator. If only row is specified, this is taken to mean 
-        that the that row in the vectorised superoperator is to be checked. If 
-        rol and col are specified, then this is taken to mean that the dynamics 
-        acting on the [row,col] component of a QGstate is Gaussian. """
+        qubit-density operator. If only row is specified, then the row in the 
+        vectorised superoperator is to be checked. If row and col are specified, 
+        then the dynamics acting on the [row,col] component of a QGstate is to 
+        be checked. """
         rank = np.prod(self.dims_fls[1])
         if col is None:
             j = row
@@ -821,39 +821,39 @@ class QGsuper(object):
         if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple)):
             args = tuple(args[0])
         # Generate indices to remove from CVS part
-        ind = [n for x in args for n in (2*x-2, 2*x-1)]
+        _ind = [n for x in args for n in (2*x-2, 2*x-1)]
 
         if self.isfls == False:
             return QGsuper(data_2nd_l = np.delete(np.delete(self.data_2nd_l, 
-                                                            ind, axis=1), 
-                                                            ind, axis=0),
+                                                            _ind, axis=1), 
+                                                            _ind, axis=0),
                            data_2nd_r = np.delete(np.delete(self.data_2nd_r, 
-                                                            ind, axis=1), 
-                                                            ind, axis=0),
+                                                            _ind, axis=1), 
+                                                            _ind, axis=0),
                            data_2nd_m = np.delete(np.delete(self.data_2nd_m, 
-                                                            ind, axis=1), 
-                                                            ind, axis=0),
+                                                            _ind, axis=1), 
+                                                            _ind, axis=0),
                            data_1st_l = np.delete(self.data_1st_l, 
-                                                  ind, axis=0),
+                                                  _ind, axis=0),
                            data_1st_r = np.delete(self.data_1st_r, 
-                                                  ind, axis=0),
+                                                  _ind, axis=0),
                            data_0th = self.data_0th,
                            dims_cvs = self.dims_cvs - len(args)
                            )
         else:
             return QGsuper(data_2nd_l = np.delete(np.delete(self.data_2nd_l, 
-                                                            ind, axis=3), 
-                                                            ind, axis=2),
+                                                            _ind, axis=3), 
+                                                            _ind, axis=2),
                            data_2nd_r = np.delete(np.delete(self.data_2nd_r, 
-                                                            ind, axis=3), 
-                                                            ind, axis=2),
+                                                            _ind, axis=3), 
+                                                            _ind, axis=2),
                            data_2nd_m = np.delete(np.delete(self.data_2nd_m, 
-                                                            ind, axis=3), 
-                                                            ind, axis=2),
+                                                            _ind, axis=3), 
+                                                            _ind, axis=2),
                            data_1st_l = np.delete(self.data_1st_l, 
-                                                  ind, axis=2),
+                                                  _ind, axis=2),
                            data_1st_r = np.delete(self.data_1st_r, 
-                                                  ind, axis=2),
+                                                  _ind, axis=2),
                            data_0th = self.data_0th,
                            dims_fls = self.dims_fls,
                            dims_cvs = self.dims_cvs - len(args)

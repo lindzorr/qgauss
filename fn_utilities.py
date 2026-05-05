@@ -37,9 +37,9 @@ def exp_integrator_phi_function(X: npt.NDArray,
     ---- Output ----
     ϕ_k(X) : nd.array
     """
-    n = np.shape(X)[0]
-    Z = np.block([np.block([[X],[np.zeros((n*k,n))]]), np.eye(n*(k+1),n*k)])
-    return la.expm(Z)[0:n,n*k:n*(k+1)]
+    _n = np.shape(X)[0]
+    _Z = np.block([np.block([[X],[np.zeros((_n*k,_n))]]),np.eye(_n*(k+1),_n*k)])
+    return la.expm(_Z)[0:_n,_n*k:_n*(k+1)]
 
 
 def trim(input: npt.NDArray, 
@@ -89,7 +89,7 @@ def vec_to_symmat(input: npt.NDArray,
                   dims: int
                   ) -> npt.NDArray:
     """ Convert a vector of length N(N+1)/2 into a NxN symmetric matrix. """
-    mask = np.tri(dims, dtype = bool , k = 0)
-    out = np.zeros((dims,dims), dtype = complex)
-    out[mask] = input
-    return out + np.triu(np.transpose(out),1)
+    _mask = np.tri(dims, dtype=bool , k = 0)
+    _out = np.zeros((dims,dims), dtype=complex)
+    _out[_mask] = input
+    return _out + np.triu(np.transpose(_out),1)

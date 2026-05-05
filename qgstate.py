@@ -13,13 +13,13 @@ class QGstate(object):
 
     """
     ---- Structure ----
-    A class for representing density operators of continuous variable (CV) 
-    Gaussian quantum states coupled to finite-level systems (FLS). The FLS 
+    A class for representing density operators of continuous variable system 
+    (CVS) Gaussian quantum states coupled to finite-level systems (FLS). The FLS 
     component of the density operator is still represented as a linear operator 
-    acting on a Hilbert space, while the CV component is represented in terms of 
-    the various moments/cumulants of the Wigner quasi-probability distribution 
-    (Wigner QPD). The basis of this representation is that the total state may 
-    be written in the L×M FLS basis as:
+    acting on a Hilbert space, while the CVS component is represented in terms 
+    of the various moments/cumulants of the Wigner quasi-probability 
+    distribution (Wigner QPD). The basis of this representation is that the 
+    total state may be written in the L×M FLS basis as:
         ρ_T = [[ρ_00, ρ_01, ... , ρ_0M],
                [ρ_10, ρ_11, ... , ρ_1M],
                 //...//
@@ -30,7 +30,7 @@ class QGstate(object):
         where
         w[ξ]_jk = Exp[-(½)ξ·Σ_jk·ξ + iξ·μ_jk + ν_jk]
     The component ρ_jk is entirely characterized by three generally complex 
-    quantities. Assuming that there are "N" CV Gaussian modes:
+    quantities. Assuming that there are "N" CVS Gaussian modes:
         · The zeroth-order cumulant, ν_jk. Exp[ν_jk] represents the total 
         mass/norm of the Wigner QPD, in addition to any weight from the 
         FLS-component of the density matrix, and is the quantity that is stored.
@@ -54,18 +54,18 @@ class QGstate(object):
                      //...//                        
                     [Exp[ν_L0], ... , Exp[ν_LM]]]
     While the FLS component in data_0th may be constructed with respect to any 
-    basis, the CV component is defined with respect to the quadrature basis 
+    basis, the CVS component is defined with respect to the quadrature basis 
     only, with a specific ordering of the components. Currently, the ordering of 
     the quadrature basis and commutation relations always takes the form:
         r = [q_1, p_1, q_2, p_2, ... , q_M, p_M] , 
         where the commutator is [q_j,p_k] = i*δ_jk, 
         or more generally, [r_j,r_k] = i*Ω_jk.
-    As a result, pairs of quadratures for the same CV mode are always 
+    As a result, pairs of quadratures for the same CVS mode are always 
     neighbours, and the symplectic form always has the form:
         Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
     Due to this form, when taking the tensor of two QGstate objects, the FLS 
     components will be combined in the usual way when taking the tensor product 
-    of operators. However, the CV components will be combined together using a 
+    of operators. However, the CVS components will be combined together using a 
     direct sum of the moment/cumulant arrays, since this takes the place of the 
     tensor product when working in phase space.
 
@@ -74,12 +74,12 @@ class QGstate(object):
         Create a copy of another QGstate.
     data_2nd : array_like
         Data for initialising the second-order central moments/second-order 
-        cumulants/covariances of the CV component.
+        cumulants/covariances of the CVS component.
     data_1st : array_like
         Data for initialising the first-order raw moments/first-order 
-        cumulants/means of the CV component.
+        cumulants/means of the CVS component.
     data_0th : array_like
-        Data for initialising the zeroth-order cumulants of the CV component. 
+        Data for initialising the zeroth-order cumulants of the CVS component. 
         The default value is 0.
     dims_cvs : int
         Total number of continuous variable cavity modes.
@@ -109,7 +109,7 @@ class QGstate(object):
     shape_0th : tuple
         Underlying shape of data_0th.
     iscvs : bool
-        Does the QGstate have a CV component.
+        Does the QGstate have a CVS component.
     isfls : bool
         Does the QGstate have an FLS component.
     isherm : bool
@@ -122,7 +122,7 @@ class QGstate(object):
         CVS-only. FLS-only states are automatically integrable. The FLS 
         component must be square.
     symform : array
-        Symplectic form, for a system with N = dims_cvs this has the form: 
+        Symplectic form, for a system with N = dims_cvs, which has the form: : 
         Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
         
     ---- Methods ----
@@ -139,13 +139,13 @@ class QGstate(object):
         Check equality of two QGstates.
     and/&/tensor : (QGstate, QGstate) -> QGstate
         shorthand for the tensor of two QGstates.
-    getitem : QGstate (FLS-CV) -> QGstate (CV)
+    getitem : QGstate (FLS-CVS) -> QGstate (CVS)
         Extract elements of QGstate with FLS and CV component, to create a 
         CVS-only QGstate.
     drop : (QGstate, int | array[int] | tuple[int]) -> QGstate
-        Remove all specified CV modes from QGstate. 
+        Remove all specified CVS modes from QGstate. 
     keep : (QGstate, int | array[int] | tuple[int]) -> QGstate
-        Keep only the specified CV modes in QGstate. 
+        Keep only the specified CVS modes in QGstate. 
     conj : QGstate -> QGstate
         Complex-conjugate of all elements of QGstate.
     trans : QGstate -> QGstate
@@ -245,7 +245,7 @@ class QGstate(object):
         elif data is None:
             self._data_2nd = np.zeros(self.shape_2nd, dtype=complex)
         else:
-            raise TypeError("Input of data_2nd is not of a supported type: array or list.")
+            raise TypeError("data_2nd is not of a supported type: array or list.")
             
     @property
     def data_1st(self) -> npt.NDArray:
@@ -269,7 +269,7 @@ class QGstate(object):
         elif data is None:
             self._data_1st = np.zeros(self.shape_1st, dtype=complex)
         else:
-            raise TypeError("Input of data_1st is not of a supported type: array or list.")
+            raise TypeError("data_1st is not of a supported type: array or list.")
             
     @property
     def data_0th(self) -> npt.NDArray:
@@ -290,7 +290,7 @@ class QGstate(object):
         elif data is None:
             self._data_0th = np.full(self.shape_0th, 1, dtype=complex)                             
         else:
-            raise TypeError("Input of data_0th is not of a supported type: array, list, or number.")
+            raise TypeError("data_0th is not of a supported type: array, list, or number.")
 
     # Set aliases to access the data arrays that are more human-readable, 
     # along with associated getattr and setattr.
@@ -318,7 +318,7 @@ class QGstate(object):
         if isinstance(dims, numbers.Integral):
             self._dims_cvs = int(dims)
         else:
-            raise TypeError("Input to dims_cvs is not of a supported type: number.")
+            raise TypeError("dims_cvs is not of a supported type: number.")
         # Set iscvs property.
         self.iscvs = dims
 
@@ -330,7 +330,7 @@ class QGstate(object):
         if isinstance(dims, (np.ndarray, list)):
             self._dims_fls = list(dims)
         else:
-            raise TypeError("Input to dims_fls is not of a supported type: array or list.")
+            raise TypeError("dims_fls is not of a supported type: array or list.")
         # Set isfls property.
         self.isfls = dims
 
@@ -422,10 +422,10 @@ class QGstate(object):
                 return True
         else:
             try:
-                re_precision_mat = np.real(inv(self.data_2nd))
-                evals = eigvals(re_precision_mat)
+                _re_precision_mat = np.real(inv(self.data_2nd))
+                evals = eigvals(_re_precision_mat)
                 if (np.all(evals > 0) and 
-                    np.all(re_precision_mat == np.transpose(re_precision_mat))
+                    np.all(_re_precision_mat == np.transpose(_re_precision_mat))
                     ):
                     return True
                 else:
@@ -498,17 +498,17 @@ class QGstate(object):
                     ) -> QGstate:
         # Convert list of QGstates which are CV systems only to a single 
         # QGstate with FLS component
-        cols = np.prod(dims_fls[0])
-        rows = np.prod(dims_fls[1])
+        _col = range(np.prod(dims_fls[0]))
+        _row = range(np.prod(dims_fls[1]))
         return QGstate(data_2nd = np.asarray([[input[qr][qc].data_2nd 
-                                               for qc in range(cols)]
-                                               for qr in range(rows)]),
+                                               for qc in _col]
+                                               for qr in _row]),
                         data_1st = np.asarray([[input[qr][qc].data_1st 
-                                                for qc in range(cols)]
-                                                for qr in range(rows)]),
+                                                for qc in _col]
+                                                for qr in _row]),
                         data_0th = np.asarray([[input[qr][qc].data_0th.item()
-                                                for qc in range(cols)]
-                                                for qr in range(rows)]),                      
+                                                for qc in _col]
+                                                for qr in _row]),                      
                         dims_cvs = input[0][0].dims_cvs,
                         dims_fls = dims_fls
                         )     
@@ -638,23 +638,23 @@ class QGstate(object):
         if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple)):
             args = tuple(args[0])
         # Generate indices to remove from CVS part
-        ind = [n for x in args for n in (2*x-2, 2*x-1)]
+        _ind = [n for x in args for n in (2*x-2, 2*x-1)]
 
         if self.isfls == False:
             return QGstate(data_2nd = np.delete(np.delete(self.data_2nd, 
-                                                          ind, axis=1), 
-                                                          ind, axis=0),
+                                                          _ind, axis=1), 
+                                                          _ind, axis=0),
                            data_1st = np.delete(self.data_1st, 
-                                                ind, axis=0),
+                                                _ind, axis=0),
                            data_0th = self.data_0th,
                            dims_cvs = self.dims_cvs - len(args)
                            )
         else:
             return QGstate(data_2nd = np.delete(np.delete(self.data_2nd, 
-                                                          ind, axis=3), 
-                                                          ind, axis=2),
+                                                          _ind, axis=3), 
+                                                          _ind, axis=2),
                            data_1st = np.delete(self.data_1st, 
-                                                ind, axis=2),
+                                                _ind, axis=2),
                            data_0th = self.data_0th,
                            dims_fls = self.dims_fls,
                            dims_cvs = self.dims_cvs - len(args)
@@ -668,8 +668,8 @@ class QGstate(object):
 
         # Generate list of modes to remove from CVS part by taking difference 
         # with the set of all modes
-        ind = list(set(range(1,self.dims_cvs+1)) - set(args))
-        return self.drop(ind)
+        _ind = list(set(range(1,self.dims_cvs+1)) - set(args))
+        return self.drop(_ind)
     
     def conj(self) -> QGstate:
         # Complex-conjugate of all elements
@@ -773,53 +773,53 @@ class QGstate(object):
 
         # Determine shape of FLS-component of data_2nd. If no component exists 
         # or data is None, set shapes to 0. 
-        data_2nd_shape_fls_row = 0
-        data_2nd_shape_fls_col = 0
+        _data_2nd_shape_fls_row = 0
+        _data_2nd_shape_fls_col = 0
         if data_2nd is not None:
-            data_2nd_shape = np.array(data_2nd).shape
-            data_2nd_axes = len(data_2nd_shape)
-            if data_2nd_axes == 4:
-                data_2nd_shape_fls_row = data_2nd_shape[0]
-                data_2nd_shape_fls_col = data_2nd_shape[1]
-            elif data_2nd_axes == 2:
+            _data_2nd_shape = np.array(data_2nd).shape
+            _data_2nd_axes = len(_data_2nd_shape)
+            if _data_2nd_axes == 4:
+                _data_2nd_shape_fls_row = _data_2nd_shape[0]
+                _data_2nd_shape_fls_col = _data_2nd_shape[1]
+            elif _data_2nd_axes == 2:
                 pass
             else:
                 raise ValueError("Shape of data_2nd cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         else:
-            data_2nd_axes = 0
+            _data_2nd_axes = 0
 
         # Determine shape of FLS-component of data_1st. If no component exists 
         # or data is None, set shapes to 0. 
-        data_1st_shape_fls_row = 0
-        data_1st_shape_fls_col = 0
+        _data_1st_shape_fls_row = 0
+        _data_1st_shape_fls_col = 0
         if data_1st is not None:
-            data_1st_shape = np.array(data_1st).shape
-            data_1st_axes = len(data_1st_shape)
-            if data_1st_axes == 3:
-                data_1st_shape_fls_row = data_1st_shape[0]
-                data_1st_shape_fls_col = data_1st_shape[1]
-            elif data_1st_axes == 1:
+            _data_1st_shape = np.array(data_1st).shape
+            _data_1st_axes = len(_data_1st_shape)
+            if _data_1st_axes == 3:
+                _data_1st_shape_fls_row = _data_1st_shape[0]
+                _data_1st_shape_fls_col = _data_1st_shape[1]
+            elif _data_1st_axes == 1:
                 pass
             else:
                 raise ValueError("Shape of data_1st cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         else:
-            data_1st_axes = 0
+            _data_1st_axes = 0
 
         # Determine shape of FLS-component of data_0th. If no component exists 
         # or data is None, set shapes to 0. 
-        data_0th_shape_fls_row = 0
-        data_0th_shape_fls_col = 0
+        _data_0th_shape_fls_row = 0
+        _data_0th_shape_fls_col = 0
         if data_0th is not None:
             if isinstance(data_0th, (np.ndarray, list)):
-                data_0th_shape = np.array(data_0th).shape
-                data_0th_axes = len(data_0th_shape)
+                _data_0th_shape = np.array(data_0th).shape
+                _data_0th_axes = len(_data_0th_shape)
                 if data_0th_axes == 2:
-                    data_0th_shape_fls_row = data_0th_shape[0]
-                    data_0th_shape_fls_col = data_0th_shape[1]
+                    _data_0th_shape_fls_row = _data_0th_shape[0]
+                    _data_0th_shape_fls_col = _data_0th_shape[1]
             elif isinstance(data_0th, (numbers.Number, np.number)):
-                data_0th_axes = 1
+                _data_0th_axes = 1
             else:
                 raise ValueError("Shape of data_0th cannot be handled by the" \
                 " QGstate class and should be reformatted.")
@@ -827,27 +827,29 @@ class QGstate(object):
             data_0th_axes = 0
 
         # Check if the data has no FLS component.
-        if (data_2nd_axes in (0,2) and 
-            data_1st_axes in (0,1) and
-            data_0th_axes in (0,1)
+        if (_data_2nd_axes in (0,2) and 
+            _data_1st_axes in (0,1) and
+            _data_0th_axes in (0,1)
             ):
             return [[],[]]
         # Else, check that the data has the correct number of axes.
-        elif (data_2nd_axes in (0,4) and
-              data_1st_axes in (0,3) and
-              data_0th_axes in (0,2)
+        elif (_data_2nd_axes in (0,4) and
+              _data_1st_axes in (0,3) and
+              _data_0th_axes in (0,2)
               ):
             # Check that the FLS dimensions are consistent.
-            data_shape_fls_row = list(set((data_2nd_shape_fls_row,
-                                           data_1st_shape_fls_row,
-                                           data_0th_shape_fls_row,
-                                           0)))
-            data_shape_fls_col = list(set((data_2nd_shape_fls_col,
-                                           data_1st_shape_fls_col,
-                                           data_0th_shape_fls_col,
-                                           0)))
-            if len(data_shape_fls_row) == 2 and len(data_shape_fls_col) == 2:
-                return [[data_shape_fls_row[1]],[data_shape_fls_col[1]]]
+            _data_shape_fls_row = list(set((_data_2nd_shape_fls_row,
+                                            _data_1st_shape_fls_row,
+                                            _data_0th_shape_fls_row,
+                                            0)))
+            _data_shape_fls_col = list(set((_data_2nd_shape_fls_col,
+                                            _data_1st_shape_fls_col,
+                                            _data_0th_shape_fls_col,
+                                            0)))
+            if len(_data_shape_fls_row) == 2 and len(_data_shape_fls_col) == 2:
+                _len_fls_row = _data_shape_fls_row[np.nonzero(_data_shape_fls_row)][0]
+                _len_fls_col = _data_shape_fls_col[np.nonzero(_data_shape_fls_col)][0]
+                return [[_len_fls_row],[_len_fls_col]]
             else:
                 raise ValueError("The FLS dimensions are inconsistent, and" \
                 " so the class cannot be intialized.")
@@ -864,65 +866,66 @@ class QGstate(object):
         
         # Determine shape of CVS-component of data_2nd. If no component exists
         # or data is None, set shapes to 0. 
-        data_2nd_shape_cvs_row = 0
-        data_2nd_shape_cvs_col = 0
+        _data_2nd_shape_cvs_row = 0
+        _data_2nd_shape_cvs_col = 0
         if data_2nd is not None:
-            data_2nd_shape = np.array(data_2nd).shape
-            data_2nd_axes = len(data_2nd_shape)
-            if data_2nd_axes == 4:
-                data_2nd_shape_cvs_row = data_2nd_shape[2]
-                data_2nd_shape_cvs_col = data_2nd_shape[3]
-            elif data_2nd_axes == 2:
-                data_2nd_shape_cvs_row = data_2nd_shape[0]
-                data_2nd_shape_cvs_col = data_2nd_shape[1]
+            _data_2nd_shape = np.array(data_2nd).shape
+            _data_2nd_axes = len(_data_2nd_shape)
+            if _data_2nd_axes == 4:
+                _data_2nd_shape_cvs_row = _data_2nd_shape[2]
+                _data_2nd_shape_cvs_col = _data_2nd_shape[3]
+            elif _data_2nd_axes == 2:
+                _data_2nd_shape_cvs_row = _data_2nd_shape[0]
+                _data_2nd_shape_cvs_col = _data_2nd_shape[1]
             else:
                 raise ValueError("Shape of data_2nd cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         else:
-            data_2nd_axes = 0
+            _data_2nd_axes = 0
     
         # Determine shape of CVS-component of data_1st. If no component exists 
         # or data is None, set shapes to 0. 
-        data_1st_shape_cvs = 0
+        _data_1st_shape_cvs = 0
         if data_1st is not None:
-            data_1st_shape = np.array(data_1st).shape
-            data_1st_axes = len(data_1st_shape)
-            if data_1st_axes == 3:
-                data_1st_shape_cvs = data_1st_shape[2]
-            elif data_1st_axes == 1:
-                data_1st_shape_cvs = data_1st_shape[0]
+            _data_1st_shape = np.array(data_1st).shape
+            _data_1st_axes = len(_data_1st_shape)
+            if _data_1st_axes == 3:
+                _data_1st_shape_cvs = _data_1st_shape[2]
+            elif _data_1st_axes == 1:
+                _data_1st_shape_cvs = _data_1st_shape[0]
             else:
                 raise ValueError("Shape of data_1st cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         else:
-            data_1st_axes = 0
+            _data_1st_axes = 0
 
         if data_0th is not None:
             if isinstance(data_0th, (np.ndarray, list)):
-                data_0th_axes = len(np.array(data_0th).shape)
+                _data_0th_axes = len(np.array(data_0th).shape)
             elif isinstance(data_0th, (numbers.Number, np.number)):
-                data_0th_axes = 1
+                _data_0th_axes = 1
             else:
-                data_0th_axes = 0
-            if data_0th_axes not in (0,1,2):
+                _data_0th_axes = 0
+            if _data_0th_axes not in (0,1,2):
                 raise ValueError("Shape of data_0th cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         
         # Check if the data has no CVS component.
-        if ((data_2nd_axes == 0) and 
-            (data_1st_axes == 0) and 
-            (data_0th_axes in (0,2))
+        if ((_data_2nd_axes == 0) and 
+            (_data_1st_axes == 0) and 
+            (_data_0th_axes in (0,2))
             ):
             return 0
         # Check that the CVS dimensions are consistent.
-        data_shape_cvs = list(set((data_2nd_shape_cvs_row, 
-                                   data_2nd_shape_cvs_col, 
-                                   data_1st_shape_cvs,
-                                   0)))
+        _data_shape_cvs = list(set((_data_2nd_shape_cvs_row,
+                                    _data_2nd_shape_cvs_col,
+                                    _data_1st_shape_cvs,
+                                    0)))
 
-        if len(data_shape_cvs) == 2:
-            if data_shape_cvs[1] % 2 == 0:
-                return int(data_shape_cvs[1] / 2)
+        if len(_data_shape_cvs) == 2:
+            _len_cvs = _data_shape_cvs[np.nonzero(_data_shape_cvs)][0]
+            if _len_cvs % 2 == 0:
+                return int(_len_cvs / 2)
             else:
                 raise ValueError("Shape of CVS-component cannot be an odd number.")
         else:

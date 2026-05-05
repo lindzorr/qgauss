@@ -33,10 +33,9 @@ def lindbladian(H: QGoper = None,
     if H is not None:
         L = -1j*(spre(H) - spost(H))
     else:
-        c0 = c_ops.pop(0)
-        L = (sprepost(c0,c0.dag()) 
-             - (1/2)*spre(c0.dag()*c0) 
-             - (1/2)*spost(c0.dag()*c0))
+        L = QGsuper(dims_cvs = c_ops[0].dims_cvs,
+                    dims_fls = [c_ops[0].dims_fls,cops[0].dims_fls])
+        
     L += sum([(sprepost(c,c.dag()) 
                - (1/2)*spre(c.dag()*c) 
                - (1/2)*spost(c.dag()*c)) 

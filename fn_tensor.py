@@ -59,10 +59,10 @@ def _tensor_oper(args) -> QGoper:
     """ Private helper function for "tensor" used to tensor QGopers. """
     # Check and raise error if an empty QGoper, one that is not iscv or isfls, 
     # is in args.
-    arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
-    arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
+    _arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
+    _arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
 
-    if len(set(arg_cvs) & set(arg_fls)) != 0:
+    if len(set(_arg_cvs) & set(_arg_fls)) != 0:
         raise ValueError("Tensor product cannot be performed with empty QGopers.")
 
     # Check and raise error if tensor will return an operator which is greater 
@@ -72,13 +72,13 @@ def _tensor_oper(args) -> QGoper:
     # (2) Whether three or more operators are linear in quadrature basis
     # (3) If one operator is of quadratic/bilinear order, then no other 
     #     operator may be of linear order
-    arg_2nd = np.where(tuple(map(lambda x: x.is2nd, args)))[0]
-    arg_1st = np.where(tuple(map(lambda x: x.is1st, args)))[0]
+    _arg_2nd = np.where(tuple(map(lambda x: x.is2nd, args)))[0]
+    _arg_1st = np.where(tuple(map(lambda x: x.is1st, args)))[0]
 
-    if ((len(arg_2nd) >= 2) or 
-        (len(arg_1st) >= 3) or
-        (len(arg_2nd) == 1 and len(arg_1st) >= 1 and 
-         len(set(arg_2nd) ^ set(arg_1st)) > 0)
+    if ((len(_arg_2nd) >= 2) or 
+        (len(_arg_1st) >= 3) or
+        (len(_arg_2nd) == 1 and len(_arg_1st) >= 1 and 
+         len(set(_arg_2nd) ^ set(_arg_1st)) > 0)
        ):
         raise ValueError("Tensor product of QGopers produces result which is " \
         "beyond quadratic/bilinear order in the quadrature operators.")
@@ -96,131 +96,154 @@ def _tensor_oper(args) -> QGoper:
 
     for _elm in args[1:]:
         if not _out_isfls and not _elm.isfls:
-            _out_data_2nd = (_elm.data_0th*np.pad(_out_data_2nd, 
-                                                  ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
-                             + _out_data_0th*np.pad(_elm.data_2nd, 
-                                                    ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                             + 2.*np.einsum("j,k->jk",
-                                            np.pad(_out_data_1st, 
-                                                   (0, 2*_elm.dims_cvs)),
-                                            np.pad(_elm.data_1st, 
-                                                   (2*_out_dims_cvs, 0))
-                                            )
-                            )
-            _out_data_1st = (_elm.data_0th*np.pad(_out_data_1st, 
-                                                  (0, 2*_elm.dims_cvs))
-                             + _out_data_0th*np.pad(_elm.data_1st, 
-                                                    (2*_out_dims_cvs, 0))
-                            )
+            _out_data_2nd = \
+            (_elm.data_0th*np.pad(_out_data_2nd,
+                                  ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                                  )
+             + _out_data_0th*np.pad(_elm.data_2nd,
+                                    ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                    )
+             + 2.*np.einsum("j,k->jk",
+                            np.pad(_out_data_1st,
+                                   (0, 2*_elm.dims_cvs)
+                                   ),
+                            np.pad(_elm.data_1st,
+                                   (2*_out_dims_cvs, 0)
+                                   )
+                                   )
+            )
+            _out_data_1st = \
+            (_elm.data_0th*np.pad(_out_data_1st, 
+                                  (0, 2*_elm.dims_cvs))
+             + _out_data_0th*np.pad(_elm.data_1st, 
+                                    (2*_out_dims_cvs, 0))
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
 
         elif _out_isfls and not _elm.isfls:
-            _out_data_2nd = (_elm.data_0th*np.pad(_out_data_2nd, 
-                                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
-                             + np.einsum("jk,lm->jklm",
-                                         _out_data_0th,
-                                         np.pad(_elm.data_2nd, 
-                                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                                        )
-                             + 2.*np.einsum("jkl,m->jklm",
-                                            np.pad(_out_data_1st, 
-                                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))),
-                                            np.pad(_elm.data_1st, 
-                                                   (2*_out_dims_cvs, 0))
-                                           )
-                            )
-            _out_data_1st = (_elm.data_0th*np.pad(_out_data_1st, 
-                                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs)))
-                             + np.einsum("jk,l->jkl",
-                                         _out_data_0th,
-                                         np.pad(_elm.data_1st, 
-                                                (2*_out_dims_cvs, 0))
-                                        )
-                            )
+            _out_data_2nd = \
+            (_elm.data_0th*np.pad(_out_data_2nd, 
+                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                                  )
+             + np.einsum("jk,lm->jklm",
+                         _out_data_0th,
+                         np.pad(_elm.data_2nd, 
+                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                )
+                        )
+             + 2.*np.einsum("jkl,m->jklm",
+                            np.pad(_out_data_1st, 
+                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                                   ),
+                            np.pad(_elm.data_1st, 
+                                   (2*_out_dims_cvs, 0)
+                                   )
+                           )
+            )
+            _out_data_1st = \
+            (_elm.data_0th*np.pad(_out_data_1st, 
+                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                                  )
+             + np.einsum("jk,l->jkl",
+                         _out_data_0th,
+                         np.pad(_elm.data_1st, 
+                                (2*_out_dims_cvs, 0)
+                                )
+                        )
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
         
         elif not _out_isfls and _elm.isfls:
-            _out_data_2nd = (np.einsum("lm,jk->jklm",
-                                       np.pad(_out_data_2nd, 
-                                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
-                                       _elm.data_0th
-                                      )
-                             + _out_data_0th*np.pad(_elm.data_2nd, 
-                                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                             + 2.*np.einsum("l,jkm->jklm",
-                                            np.pad(_out_data_1st, 
-                                                   (0, 2*_elm.dims_cvs)),
-                                            np.pad(_elm.data_1st, 
-                                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0)))
-                                           )
-                            )
-            _out_data_1st = (np.einsum("l,jk->jkl",
-                                       np.pad(_out_data_1st, 
-                                              (0, 2*_elm.dims_cvs)),
-                                       _elm.data_0th
-                                      )
-                            + _out_data_0th*np.pad(_elm.data_1st, 
-                                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0)))
-                            )
+            _out_data_2nd = \
+            (np.einsum("lm,jk->jklm",
+                       np.pad(_out_data_2nd, 
+                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                              ),
+                       _elm.data_0th
+                      )
+             + _out_data_0th*np.pad(_elm.data_2nd, 
+                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                    )
+             + 2.*np.einsum("l,jkm->jklm",
+                            np.pad(_out_data_1st, 
+                                   (0, 2*_elm.dims_cvs)
+                                   ),
+                            np.pad(_elm.data_1st, 
+                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
+                                   )
+                           )
+            )
+            _out_data_1st = \
+            (np.einsum("l,jk->jkl",
+                       np.pad(_out_data_1st, 
+                              (0, 2*_elm.dims_cvs)),
+                       _elm.data_0th
+                      )
+             + _out_data_0th*np.pad(_elm.data_1st, 
+                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0)))
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = _elm.dims_fls
             
         else:
-            _out_data_2nd = (np.einsum("jpkqyz,plqm->jlkmyz",
-                                       np.pad(_out_data_2nd, 
-                                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                                             )[:,np.newaxis,:,np.newaxis,:,:],
-                                       _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                2*(_out_dims_cvs + _elm.dims_cvs),
-                                                2*(_out_dims_cvs + _elm.dims_cvs))
-                             + np.einsum("jpkq,plqmyz->jlkmyz",
-                                         _out_data_0th[:,np.newaxis,:,np.newaxis],
-                                         np.pad(_elm.data_2nd, 
-                                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                               )[np.newaxis,:,np.newaxis,:,:,:]
-                                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs))
-                             + 2.*np.einsum("jpkqy,plqmz->jlkmyz",
-                                            np.pad(_out_data_1st, 
-                                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                                  )[:,np.newaxis,:,np.newaxis,:],
-                                            np.pad(_elm.data_1st, 
-                                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
-                                                  )[np.newaxis,:,np.newaxis,:,:]
-                                           ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                     np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                     2*(_out_dims_cvs + _elm.dims_cvs),
-                                                     2*(_out_dims_cvs + _elm.dims_cvs))
-                            )
-            _out_data_1st = (np.einsum("jpkqz,plqm->jlkmz",
-                                       np.pad(_out_data_1st, 
-                                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                             )[:,np.newaxis,:,np.newaxis,:],
-                                       _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                2*(_out_dims_cvs + _elm.dims_cvs))
-                             + np.einsum("jpkq,plqmz->jlkmz",
-                                         _out_data_0th[:,np.newaxis,:,np.newaxis],
-                                         np.pad(_elm.data_1st, 
-                                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
-                                               )[np.newaxis,:,np.newaxis,:,:]
-                                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs))
-                            )
-            _out_data_0th = np.einsum("jpkq,plqm->jlkm",
-                                      _out_data_0th[:,np.newaxis,:,np.newaxis],
-                                      _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
+            _out_data_2nd = \
+            (np.einsum("jpkqyz,plqm->jlkmyz",
+                       np.pad(_out_data_2nd, 
+                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                              )[:,np.newaxis,:,np.newaxis,:,:],
+                       _elm.data_0th[np.newaxis,:,np.newaxis,:]
+                       ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                 np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                 2*(_out_dims_cvs + _elm.dims_cvs),
+                                 2*(_out_dims_cvs + _elm.dims_cvs))
+             + np.einsum("jpkq,plqmyz->jlkmyz",
+                         _out_data_0th[:,np.newaxis,:,np.newaxis],
+                         np.pad(_elm.data_2nd,
+                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                )[np.newaxis,:,np.newaxis,:,:,:]
+                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                  2*(_out_dims_cvs + _elm.dims_cvs),
+                                  2*(_out_dims_cvs + _elm.dims_cvs))
+             + 2.*np.einsum("jpkqy,plqmz->jlkmyz",
+                            np.pad(_out_data_1st,
+                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                                   )[:,np.newaxis,:,np.newaxis,:],
+                            np.pad(_elm.data_1st,
+                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
+                                   )[np.newaxis,:,np.newaxis,:,:]
+                           ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                     np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                     2*(_out_dims_cvs + _elm.dims_cvs),
+                                     2*(_out_dims_cvs + _elm.dims_cvs))
+            )
+            _out_data_1st = \
+            (np.einsum("jpkqz,plqm->jlkmz",
+                       np.pad(_out_data_1st,
+                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                              )[:,np.newaxis,:,np.newaxis,:],
+                              _elm.data_0th[np.newaxis,:,np.newaxis,:]
+                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                        2*(_out_dims_cvs + _elm.dims_cvs))
+             + np.einsum("jpkq,plqmz->jlkmz",
+                         _out_data_0th[:,np.newaxis,:,np.newaxis],
+                         np.pad(_elm.data_1st,
+                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
+                                )[np.newaxis,:,np.newaxis,:,:]
+                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                          2*(_out_dims_cvs + _elm.dims_cvs))
+            )
+            _out_data_0th = \
+            np.einsum("jpkq,plqm->jlkm",
+                      _out_data_0th[:,np.newaxis,:,np.newaxis],
+                      _elm.data_0th[np.newaxis,:,np.newaxis,:]
+                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = [_out_dims_fls[0] + _elm.dims_fls[0],
                              _out_dims_fls[1] + _elm.dims_fls[1]]
@@ -241,10 +264,10 @@ def _tensor_state(args) -> QGstate:
     """ Private helper function for "tensor" used to tensor QGstates. """
     # Check and raise error if an empty QGstate, one that is not iscv or isfls, 
     # is in args.
-    arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
-    arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
+    _arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
+    _arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
 
-    if len(set(arg_cvs) & set(arg_fls)) != 0:
+    if len(set(_arg_cvs) & set(_arg_fls)) != 0:
         raise ValueError("Tensor product cannot be performed with empty QGstates.")
     
     # Set data from first argument as initial data for output
@@ -260,45 +283,58 @@ def _tensor_state(args) -> QGstate:
 
     for _elm in args[1:]:
         if not _out_isfls and not _elm.isfls:
-            _out_data_2nd = (np.pad(_out_data_2nd, 
-                                    ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
-                             + np.pad(_elm.data_2nd, 
-                                      ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                            )
-            _out_data_1st = (np.pad(_out_data_1st, 
-                                    (0, 2*_elm.dims_cvs))
-                             + np.pad(_elm.data_1st, 
-                                      (2*_out_dims_cvs, 0))
-                            )
+            _out_data_2nd = \
+            (np.pad(_out_data_2nd,
+                    ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                    )
+             + np.pad(_elm.data_2nd,
+                      ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                      )
+            )
+            _out_data_1st = \
+            (np.pad(_out_data_1st,
+                    (0, 2*_elm.dims_cvs)
+                    )
+             + np.pad(_elm.data_1st, 
+                      (2*_out_dims_cvs, 0)
+                      )
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
 
         elif _out_isfls and not _elm.isfls:
-            _out_data_2nd = (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
-                                         np.pad(_out_data_2nd,
-                                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))) 
-                                        )
-                             + np.einsum("jk,lm->jklm",
-                                         np.where(_out_data_0th != 0, 1, 0),
-                                         np.pad(_elm.data_2nd, 
-                                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                                        )
-                            )
-            _out_data_1st = (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
-                                         np.pad(_out_data_1st,
-                                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs)))
-                                        )
-                             + np.einsum("jk,l->jkl",
-                                         np.where(_out_data_0th != 0, 1, 0),
-                                         np.pad(_elm.data_1st, 
-                                                (2*_out_dims_cvs, 0))
-                                        )
-                            )
+            _out_data_2nd = \
+            (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
+                         np.pad(_out_data_2nd,
+                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                                )
+                        )
+             + np.einsum("jk,lm->jklm",
+                         np.where(_out_data_0th != 0, 1, 0),
+                         np.pad(_elm.data_2nd,
+                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                )
+                        )
+            )
+            _out_data_1st = \
+            (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
+                         np.pad(_out_data_1st,
+                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                                )
+                        )
+             + np.einsum("jk,l->jkl",
+                         np.where(_out_data_0th != 0, 1, 0),
+                         np.pad(_elm.data_1st,
+                                (2*_out_dims_cvs, 0)
+                                )
+                        )
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
         
         elif not _out_isfls and _elm.isfls:
-            _out_data_2nd = (np.einsum("lm,jk->jklm",
+            _out_data_2nd = \
+            (np.einsum("lm,jk->jklm",
                                        np.pad(_out_data_2nd, 
                                               ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
                                        np.where(_elm.data_0th != 0, 1, 0)
@@ -308,62 +344,68 @@ def _tensor_state(args) -> QGstate:
                                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
                                            )
                             )
-            _out_data_1st = (np.einsum("l,jk->jkl",
-                                       np.pad(_out_data_1st, 
-                                              (0, 2*_elm.dims_cvs)),
-                                       np.where(_elm.data_0th != 0, 1, 0)
-                                      )
-                            + np.multiply(np.where(_out_data_0th != 0, 1, 0),
-                                          np.pad(_elm.data_1st,
-                                                 ((0, 0), (0, 0), (2*_out_dims_cvs, 0)))
-                                          )
-                            )
+            _out_data_1st = \
+            (np.einsum("l,jk->jkl",
+                       np.pad(_out_data_1st,
+                              (0, 2*_elm.dims_cvs)
+                              ),
+                       np.where(_elm.data_0th != 0, 1, 0)
+                       )
+             + np.multiply(np.where(_out_data_0th != 0, 1, 0),
+                           np.pad(_elm.data_1st,
+                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
+                                  )
+                          )
+            )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = _elm.dims_fls
             
         else:
-            _out_data_2nd = (np.einsum("jpkqyz,plqm->jlkmyz",
-                                       np.pad(_out_data_2nd,
-                                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                                             )[:,np.newaxis,:,np.newaxis,:,:],
-                                       np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                2*(_out_dims_cvs + _elm.dims_cvs),
-                                                2*(_out_dims_cvs + _elm.dims_cvs))
-                             + np.einsum("jpkq,plqmyz->jlkmyz",
-                                         np.where(_out_data_0th!=0, 1, 0)[:,np.newaxis,:,np.newaxis],
-                                         np.pad(_elm.data_2nd,
-                                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                               )[np.newaxis,:,np.newaxis,:,:,:]
-                                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs))
-                            )
-            _out_data_1st = (np.einsum("jpkqz,plqm->jlkmz",
-                                       np.pad(_out_data_1st,
-                                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                             )[:,np.newaxis,:,np.newaxis,:],
-                                       np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                2*(_out_dims_cvs + _elm.dims_cvs))
-                             + np.einsum("jpkq,plqmz->jlkmz",
-                                         np.where(_out_data_0th != 0, 1, 0)[:,np.newaxis,:,np.newaxis],
-                                         np.pad(_elm.data_1st,
-                                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
-                                               )[np.newaxis,:,np.newaxis,:,:]
-                                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
-                                                  2*(_out_dims_cvs + _elm.dims_cvs))
-                            )
-            _out_data_0th = np.einsum("jpkq,plqm->jlkm",
-                                      _out_data_0th[:,np.newaxis,:,np.newaxis],
-                                      _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
+            _out_data_2nd = \
+            (np.einsum("jpkqyz,plqm->jlkmyz",
+                       np.pad(_out_data_2nd,
+                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
+                              )[:,np.newaxis,:,np.newaxis,:,:],
+                              np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
+                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                        2*(_out_dims_cvs + _elm.dims_cvs),
+                                        2*(_out_dims_cvs + _elm.dims_cvs))
+             + np.einsum("jpkq,plqmyz->jlkmyz",
+                         np.where(_out_data_0th!=0, 1, 0)[:,np.newaxis,:,np.newaxis],
+                         np.pad(_elm.data_2nd,
+                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
+                                )[np.newaxis,:,np.newaxis,:,:,:]
+                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                          2*(_out_dims_cvs + _elm.dims_cvs),
+                                          2*(_out_dims_cvs + _elm.dims_cvs))
+            )
+            _out_data_1st = \
+            (np.einsum("jpkqz,plqm->jlkmz",
+                       np.pad(_out_data_1st,
+                              ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
+                              )[:,np.newaxis,:,np.newaxis,:],
+                              np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
+                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                        2*(_out_dims_cvs + _elm.dims_cvs))
+             + np.einsum("jpkq,plqmz->jlkmz",
+                         np.where(_out_data_0th != 0, 1, 0)[:,np.newaxis,:,np.newaxis],
+                         np.pad(_elm.data_1st,
+                                ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
+                                )[np.newaxis,:,np.newaxis,:,:]
+                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                          2*(_out_dims_cvs + _elm.dims_cvs))
+            )
+            _out_data_0th = \
+            np.einsum("jpkq,plqm->jlkm",
+                      _out_data_0th[:,np.newaxis,:,np.newaxis],
+                      _elm.data_0th[np.newaxis,:,np.newaxis,:]
+                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
+                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = [_out_dims_fls[0] + _elm.dims_fls[0],
                              _out_dims_fls[1] + _elm.dims_fls[1]]
