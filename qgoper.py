@@ -245,7 +245,8 @@ class QGoper(object):
             self._data_2nd = np.zeros(self.shape_2nd, dtype=complex)
         else:
             raise TypeError("data_2nd is not of a supported type: array or list.")
-        self._invalidate_order('2nd')
+        # Invalidate any dependent cached properties
+        self._invalidate(['is2nd','is0th','isherm','isgauss'])
     
     @property
     def data_1st(self) -> npt.NDArray:
@@ -262,7 +263,8 @@ class QGoper(object):
             self._data_1st = np.zeros(self.shape_1st, dtype=complex)
         else:
             raise TypeError("data_1st is not of a supported type: array or list.")
-        self._invalidate_order('1st')
+        # Invalidate any dependent cached properties
+        self._invalidate(['is1st','isherm','isgauss'])
     
     @property
     def data_0th(self) -> np.NDArray:
@@ -284,7 +286,8 @@ class QGoper(object):
             self._data_0th = np.zeros(self.shape_0th, dtype=complex)               
         else:
             raise TypeError("data_0th is not of a supported type: array, list, or number.")
-        self._invalidate_order('0th')
+        # Invalidate any dependent cached properties
+        self._invalidate(['is0th','isherm','isgauss'])
     
     # Set aliases to access the data arrays that are more human-readable, 
     # along with associated getattr and setattr
@@ -410,29 +413,15 @@ class QGoper(object):
             return False
         else:
             return True
-    
-    def _invalidate_order(self, order):
-        # Remove chached properties when updating data matrices.
-        if order == '2nd':
-            if hasattr(self, 'is2nd'):
-                delattr(self, 'is2nd')
-            if hasattr(self, 'is0th'):
-                delattr(self, 'is0th')
-        elif order == '1st':
-            if hasattr(self, 'is1st'):
-                delattr(self, 'is1st')
-        elif order == '0th':
-            if hasattr(self, 'is0th'):
-                delattr(self, 'is0th')
 
-    @property
+    @cached_property
     def isherm(self) -> bool:
         if self == self.dag():
             return True
         else:
             return False
  
-    @property 
+    @cached_property 
     def isgauss(self) -> bool: 
         if self.iscvs and not self.isfls:
             return True
@@ -443,7 +432,6 @@ class QGoper(object):
                          )
     
     def _isdiag(self, row: int, col: int) -> bool:
-        rank = np.prod(self.dims_fls[1])
         if row == col:
             return True
         else:
@@ -455,10 +443,16 @@ class QGoper(object):
             else:
                 return False
         
-    @property
+    @cached_property
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
     
+    def _invalidate(self, attr):
+        # Remove cached properties that have been set.
+        for key in attr:
+            if key in self.__dict__: 
+                del self.__dict__[key]
+
     '''
     ---------------
         Methods

@@ -283,8 +283,8 @@ class QGsuper(object):
             self._data_2nd_l = np.zeros(self.shape_2nd, dtype=complex)
         else:
             raise TypeError("data_2nd_l is not of a supported type: array or list.")
-        self._invalidate_wigner('2nd')
-        self._invalidate_order('2nd')
+        # Invalidate any cached properties
+        self._invalidate(self._attr_2nd + self._attr_0th + self._attr_gen)
 
     @property
     def data_2nd_r(self) -> npt.NDArray:
@@ -302,8 +302,8 @@ class QGsuper(object):
             self._data_2nd_r = np.zeros(self.shape_2nd, dtype=complex)
         else:
             raise TypeError("data_2nd_r is not of a supported type: array or list.")
-        self._invalidate_wigner('2nd')
-        self._invalidate_order('2nd')
+        # Invalidate any cached properties
+        self._invalidate(self._attr_2nd + self._attr_0th + self._attr_gen)
 
     @property
     def data_2nd_m(self) -> npt.NDArray:
@@ -321,8 +321,8 @@ class QGsuper(object):
             self._data_2nd_m = np.zeros(self.shape_2nd, dtype=complex)
         else:
             raise TypeError("data_2nd_m is not of a supported type: array or list.")
-        self._invalidate_wigner('2nd')
-        self._invalidate_order('2nd')
+        # Invalidate any cached properties
+        self._invalidate(self._attr_2nd + self._attr_0th + self._attr_gen)
     
     @property
     def data_1st_l(self) -> npt.NDArray:
@@ -340,8 +340,8 @@ class QGsuper(object):
             self._data_1st_l = np.zeros(self.shape_1st, dtype=complex)
         else:
             raise TypeError("data_1st_l is not of a supported type: array or list.")
-        self._invalidate_wigner('1st')
-        self._invalidate_order('1st')
+        # Invalidate any dependent cached properties
+        self._invalidate(self._attr_1st + self._attr_gen)
         
     @property
     def data_1st_r(self) -> npt.NDArray:
@@ -359,8 +359,8 @@ class QGsuper(object):
             self._data_1st_r = np.zeros(self.shape_1st, dtype=complex)
         else:
             raise TypeError("data_1st_r is not of a supported type: array or list.")
-        self._invalidate_wigner('1st')
-        self._invalidate_order('1st')
+        # Invalidate any dependent cached properties
+        self._invalidate(self._attr_1st + self._attr_gen)
         
     @property
     def data_0th(self) -> npt.NDArray:
@@ -382,8 +382,8 @@ class QGsuper(object):
                 self._data_0th = np.zeros(self.shape_0th, dtype = complex)
         else:
             raise TypeError("data_0th is not of a supported type: array, list, or number.")
-        self._invalidate_wigner('0th')
-        self._invalidate_order('0th')
+        # Invalidate any dependent cached properties
+        self._invalidate(self._attr_0th + self._attr_gen)
     
     # Set aliases to access the data arrays that are more human-readable, 
     # along with associated getattr and setattr
@@ -483,26 +483,6 @@ class QGsuper(object):
                     + (1j/2)*np.array(np.trace(self.symform 
                                                @ ((1/2)*(self.data_2nd_l + self.data_2nd_r) - self.data_2nd_m)
                                                )))
-
-    def _invalidate_wigner(self, order):
-        # Remove chached properties storing Wigner arrays when updating data matrices.
-        if order == '2nd':
-            if hasattr(self, 'wigner_2nd_deriv_var'):
-                delattr(self, 'wigner_2nd_deriv_var')
-            if hasattr(self, 'wigner_2nd_var'):
-                delattr(self, 'wigner_2nd_var')
-            if hasattr(self, 'wigner_2nd_deriv'):
-                delattr(self, 'wigner_2nd_deriv')
-            if hasattr(self, 'wigner_0th'):
-                delattr(self, 'wigner_0th')
-        elif order == '1st':
-            if hasattr(self, 'wigner_1st_deriv'):
-                delattr(self, 'wigner_1st_deriv')
-            if hasattr(self, 'wigner_1st_var'):
-                delattr(self, 'wigner_1st_var')
-        elif order == '0th':
-            if hasattr(self, 'wigner_0th'):
-                delattr(self, 'wigner_0th')
                 
     @property
     def dims_cvs(self) -> int:
@@ -619,28 +599,14 @@ class QGsuper(object):
         else:
             return True
 
-    def _invalidate_order(self, order):
-        # Remove chached properties when updating data matrices.
-        if order == '2nd':
-            if hasattr(self, 'is2nd'):
-                delattr(self, 'is2nd')
-            if hasattr(self, 'is0th'):
-                delattr(self, 'is0th')
-        elif order == '1st':
-            if hasattr(self, 'is1st'):
-                delattr(self, 'is1st')
-        elif order == '0th':
-            if hasattr(self, 'is0th'):
-                delattr(self, 'is0th')
-
-    @property
+    @cached_property
     def iscoherent(self) -> bool:
         if self == -self.dag():
             return True
         else:
             return False
         
-    @property 
+    @cached_property
     def isgauss(self) -> bool: 
         if self.iscvs and not self.isfls:
             return True
@@ -678,10 +644,23 @@ class QGsuper(object):
         else:
             return False
 
-    @property
+    @cached_property
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
     
+    # Set lists of attribute names that need to be invalidated together
+    # when data arrays are updated.
+    _attr_2nd = ['is2nd','wigner_2nd_deriv_var','wigner_2nd_var','wigner_2nd_deriv']
+    _attr_1st = ['is1st','wigner_1st_deriv','wigner_1st_var']
+    _attr_0th = ['is0th','wigner_0th']
+    _attr_gen = ['iscoherent','isgauss']
+
+    def _invalidate(self, attr):
+        # Remove cached properties that have been set.
+        for key in attr:
+            if key in self.__dict__: 
+                del self.__dict__[key]
+
     '''
     ---------------
         Methods

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cached_property
 import numbers
 import numpy.typing as npt
 import qgauss
@@ -246,7 +247,9 @@ class QGstate(object):
             self._data_2nd = np.zeros(self.shape_2nd, dtype=complex)
         else:
             raise TypeError("data_2nd is not of a supported type: array or list.")
-            
+        # Invalidate any dependent cached properties
+        self._invalidate(['isherm','isnormalized','isintegrable'])
+
     @property
     def data_1st(self) -> npt.NDArray:
         return self._data_1st
@@ -270,7 +273,9 @@ class QGstate(object):
             self._data_1st = np.zeros(self.shape_1st, dtype=complex)
         else:
             raise TypeError("data_1st is not of a supported type: array or list.")
-            
+        # Invalidate any dependent cached properties
+        self._invalidate(['isherm'])
+
     @property
     def data_0th(self) -> npt.NDArray:
         return self._data_0th
@@ -291,6 +296,8 @@ class QGstate(object):
             self._data_0th = np.full(self.shape_0th, 1, dtype=complex)                             
         else:
             raise TypeError("data_0th is not of a supported type: array, list, or number.")
+        # Invalidate any dependent cached properties
+        self._invalidate(['isherm','isnormalized'])
 
     # Set aliases to access the data arrays that are more human-readable, 
     # along with associated getattr and setattr.
@@ -386,21 +393,21 @@ class QGstate(object):
         else:
             self._isfls = True
     
-    @property
+    @cached_property
     def isherm(self) -> bool:
         if self == self.dag():
             return True
         else:
             return False
         
-    @property
+    @cached_property
     def isnormalized(self) -> bool:
         if self.trace() == 1:
             return True
         else:
             return False
     
-    @property
+    @cached_property
     def isintegrable(self) -> bool:
         if self.isfls and not self.iscvs:
             return True
@@ -433,9 +440,15 @@ class QGstate(object):
             except:
                 return False
         
-    @property
+    @cached_property
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
+    
+    def _invalidate(self, attr):
+        # Remove cached properties that have been set.
+        for key in attr:
+            if key in self.__dict__: 
+                del self.__dict__[key]
     
     '''
     ---------------

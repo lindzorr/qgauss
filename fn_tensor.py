@@ -110,7 +110,7 @@ def _tensor_oper(args) -> QGoper:
                             np.pad(_elm.data_1st,
                                    (2*_out_dims_cvs, 0)
                                    )
-                                   )
+                           )
             )
             _out_data_1st = \
             (_elm.data_0th*np.pad(_out_data_1st, 
