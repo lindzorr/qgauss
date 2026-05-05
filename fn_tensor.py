@@ -335,15 +335,15 @@ def _tensor_state(args) -> QGstate:
         elif not _out_isfls and _elm.isfls:
             _out_data_2nd = \
             (np.einsum("lm,jk->jklm",
-                                       np.pad(_out_data_2nd, 
-                                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
-                                       np.where(_elm.data_0th != 0, 1, 0)
-                                      )
-                             + np.multiply(np.where(_out_data_0th != 0, 1, 0),
-                                           np.pad(_elm.data_2nd, 
-                                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                                           )
-                            )
+                       np.pad(_out_data_2nd,
+                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
+                              np.where(_elm.data_0th != 0, 1, 0)
+                       )
+             + np.multiply(np.where(_out_data_0th != 0, 1, 0),
+                           np.pad(_elm.data_2nd,
+                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
+                           )
+            )
             _out_data_1st = \
             (np.einsum("l,jk->jkl",
                        np.pad(_out_data_1st,
