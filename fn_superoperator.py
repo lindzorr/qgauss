@@ -14,7 +14,7 @@ __all__ = ['spre','spost','sprepost',
 
 def dissipator(A: QGoper, 
                B: QGoper = None
-               ) -> QGsuper:
+              ) -> QGsuper:
     # Lindblad dissipation term: D[A,B](ρ) = A.ρ.B* - ½[B*.A,ρ]_+, where D[A,A] = D[A]
     if B is None:
         B = A
@@ -28,7 +28,7 @@ def coherent(H: QGoper) -> QGsuper:
 
 def lindbladian(H: QGoper = None, 
                 c_ops: list[QGoper]=[]
-                ) -> QGsuper:
+               ) -> QGsuper:
     # Lindblad superoperator, L(ρ) = -i[H,ρ] + Σ_{c_ops} D[c_ops](ρ)
     if H is not None:
         L = -1j*(spre(H) - spost(H))
@@ -39,7 +39,7 @@ def lindbladian(H: QGoper = None,
     L += sum([(sprepost(c,c.dag()) 
                - (1/2)*spre(c.dag()*c) 
                - (1/2)*spost(c.dag()*c)) 
-               for c in c_ops])
+              for c in c_ops])
     return L
 
 
@@ -123,7 +123,7 @@ def spre(A: QGoper) -> QGsuper:
 
 def sprepost(A: QGoper, 
              B: QGoper
-             ) -> QGsuper:
+            ) -> QGsuper:
     # Superoperator representing pre/left and post-right-multiplication of a
     # state by an operator: A.ρ.B
     if (A.dims_cvs != B.dims_cvs) and (A.dims_fls != B.dims_fls).all():

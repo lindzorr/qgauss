@@ -652,11 +652,9 @@ class QGsuper(object):
 
     def _invalidate(self, attr_list):
         # Remove cached properties that have been set.
-        for key in attr_list:
-            if key in self.__dict__: 
-                del self.__dict__[key]
-            else:
-                pass
+        for attr in attr_list:
+            if attr in self.__dict__: 
+                del self.__dict__[attr]
 
     '''
     ---------------

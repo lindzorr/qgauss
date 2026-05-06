@@ -19,7 +19,7 @@ __all__ = ['unitary_timeevolve','lindblad_timeevolve',
 def unitary_timeevolve(H: QGoper,
                        rho0: QGstate,
                        t: float = 1
-                       ) -> QGstate:
+                      ) -> QGstate:
     """
     ---- Prodcedure ----
     Apply a unitary operation to QGstate, equivalent to a symplectic-affine 
@@ -72,19 +72,17 @@ def unitary_timeevolve(H: QGoper,
                                    for k in range(rho0.shape_0th[1])]
                                    for j in range(rho0.shape_0th[0])])
 
-    rhof = QGstate(data_2nd = _out_data_2nd,
+    return QGstate(data_2nd = _out_data_2nd,
                    data_1st = _out_data_1st,
                    data_0th = rho0.data_0th,
                    dims_fls = rho0.dims_fls,
-                   dims_cvs = rho0.dims_cvs
-                   )
-    return rhof
+                   dims_cvs = rho0.dims_cvs)
 
 
 def lindblad_timeevolve(LV: QGsuper,
                         rho0: QGstate,
                         t: float = 1
-                        ) -> QGstate:
+                       ) -> QGstate:
     """
     ---- Prodcedure ----
     Calculate future state of initial state under evolution from a 
@@ -138,7 +136,8 @@ def lindblad_timeevolve(LV: QGsuper,
     _d = t * exp_integrator_phi_function(t*_A) @ _f
     _V = vec_to_mat(t * exp_integrator_phi_function(t*(la.kron(_A, np.eye(2*LV.dims_cvs)) 
                                                     + la.kron(np.eye(2*LV.dims_cvs), _A)))
-                                                    @ mat_to_vec(_C), LV.shape_2nd)
+                                                    @ mat_to_vec(_C), 
+                                                    LV.shape_2nd)
 
     if not rho0.isfls:
         _out_data_2nd = _S @ rho0.data_2nd @ np.transpose(_S) + _V
@@ -151,13 +150,11 @@ def lindblad_timeevolve(LV: QGsuper,
                                    for k in range(rho0.shape_0th[1])]
                                    for j in range(rho0.shape_0th[0])])
 
-    rhof =  QGstate(data_2nd = _out_data_2nd,
-                    data_1st = _out_data_1st,
-                    data_0th = rho0.data_0th,
-                    dims_fls = rho0.dims_fls,
-                    dims_cvs = rho0.dims_cvs
-                    )
-    return rhof
+    return QGstate(data_2nd = _out_data_2nd,
+                   data_1st = _out_data_1st,
+                   data_0th = rho0.data_0th,
+                   dims_fls = rho0.dims_fls,
+                   dims_cvs = rho0.dims_cvs)
 
 
 def moment_timeevolve(L0: QGsuper = None,
@@ -165,7 +162,7 @@ def moment_timeevolve(L0: QGsuper = None,
                       rho0: QGstate = None,
                       tlist: list[float] | npt.NDArray[float] = [0,1],
                       **options
-                      ):
+                     ):
     """
     ---- Procedure ----
     Time-dependent solver for the steady-state for a corresponding CV system 
@@ -280,7 +277,7 @@ def moment_timeevolve(L0: QGsuper = None,
         and np.all(np.abs(_D0) < _tol)
         and len(_Bt) == 0
         and len(_Dt) == 0
-        ):
+       ):
         # Define functions to pass to solve_ivp
         def _ode_func_cov(t,X):
             # Function for the covariance to pass to solve_ivp, which requires 
@@ -308,7 +305,7 @@ def moment_timeevolve(L0: QGsuper = None,
         _msol = solve_ivp(_ode_func_mean, (tlist[0],tlist[-1]), _m0, t_eval = tlist, **options)
         _nsol = solve_ivp(_ode_func_norm, (tlist[0],tlist[-1]), _n0, t_eval = tlist, **options)
 
-        _Vt = [_Vsol.y[:,t] for t in range (0,len(tlist))]
+        _Vt = [_Vsol.y[:,t] for t in range(0,len(tlist))]
         _mt = [_msol.y[:,t] for t in range(0,len(tlist))]
         _nt = [_nsol.y[:,t] for t in range(0,len(tlist))]
 
@@ -339,19 +336,15 @@ def moment_timeevolve(L0: QGsuper = None,
         _X0 = np.concatenate((_V0, _m0, _n0))
         _Xsol = solve_ivp(_ode_func_total, (tlist[0],tlist[-1]), _X0, t_eval = tlist, **options)
         
-        _Vt = [_Xsol.y[0:_dims*(2*_dims+1), t]
-               for t in range (0,len(tlist))]
-        _mt = [_Xsol.y[_dims*(2*_dims+1):_dims*(2*_dims+3), t]
-               for t in range (0,len(tlist))]
-        _nt = [_Xsol.y[_dims*(2*_dims+3), t]
-               for t in range (0,len(tlist))]
+        _Vt = [_Xsol.y[0:_dims*(2*_dims+1), t] for t in range(0,len(tlist))]
+        _mt = [_Xsol.y[_dims*(2*_dims+1):_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
+        _nt = [_Xsol.y[_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
 
-    rhot = [QGstate(data_2nd = vec_to_symmat(_Vt[t], 2*_dims),
+    return [QGstate(data_2nd = vec_to_symmat(_Vt[t], 2*_dims),
                     data_1st = _mt[t],
                     data_0th = _nt[t],
                     dims_cvs = _dims)
-                    for t in range(0, len(tlist))]
-    return rhot
+            for t in range(0, len(tlist))]
 
 
 def backaction_timeevolve(L0: QGsuper = None,
@@ -360,7 +353,7 @@ def backaction_timeevolve(L0: QGsuper = None,
                           tlist: list[float] | npt.NDArray[float] = [0,1],
                           qubit: str = None,
                           **options
-                          ):
+                         ):
     """
     ---- Procedure ----
     Time domain solver for the backaction rates of a CV system on a qubit, or a 
@@ -464,8 +457,7 @@ def backaction_timeevolve(L0: QGsuper = None,
                                           Lt = Lt,
                                           rho0 = rho0,
                                           tlist = tlist,
-                                          **options
-                                          )
+                                          **options)
 
     # ----------------------------------------------------------------------
     # Qubit state is specified, solve the corresponding CV component
@@ -491,8 +483,7 @@ def backaction_timeevolve(L0: QGsuper = None,
                                                 for x in Lt], 
                                           rho0 = rho0[_qrow,_qcol],
                                           tlist = tlist, 
-                                          **options
-                                          )
+                                          **options)
         
     # ----------------------------------------------------------------------
     # No qubit state is specified, solve for all components
@@ -528,8 +519,7 @@ def backaction_timeevolve(L0: QGsuper = None,
                                                         for x in Lt], 
                                                   rho0 = rho0[_qrow,_qcol], 
                                                   tlist = tlist, 
-                                                  **options
-                                                  )
+                                                  **options)
                 
     return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para
 
@@ -539,7 +529,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
                                   rho0: QGstate,
                                   tlist: list[float] | npt.NDArray[float],
                                   **options
-                                  ):
+                                 ):
     """
     The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The 
     backaction rate is then extracted from dv/dt, defined by
@@ -579,8 +569,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
                               Lt = Lt, 
                               rho0 = rho0, 
                               tlist = tlist, 
-                              **options
-                              )
+                              **options)
     _tol = options['atol']
 
     # Generate arrays from the QGsuper inputs L0 and Lt

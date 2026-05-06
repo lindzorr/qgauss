@@ -98,19 +98,14 @@ def _tensor_oper(args) -> QGoper:
         if not _out_isfls and not _elm.isfls:
             _out_data_2nd = \
             (_elm.data_0th*np.pad(_out_data_2nd,
-                                  ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                                  )
+                                  ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
              + _out_data_0th*np.pad(_elm.data_2nd,
-                                    ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                    )
+                                    ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
              + 2.*np.einsum("j,k->jk",
                             np.pad(_out_data_1st,
-                                   (0, 2*_elm.dims_cvs)
-                                   ),
+                                   (0, 2*_elm.dims_cvs)),
                             np.pad(_elm.data_1st,
-                                   (2*_out_dims_cvs, 0)
-                                   )
-                           )
+                                   (2*_out_dims_cvs, 0)))
             )
             _out_data_1st = \
             (_elm.data_0th*np.pad(_out_data_1st, 
@@ -124,33 +119,24 @@ def _tensor_oper(args) -> QGoper:
         elif _out_isfls and not _elm.isfls:
             _out_data_2nd = \
             (_elm.data_0th*np.pad(_out_data_2nd, 
-                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                                  )
+                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
              + np.einsum("jk,lm->jklm",
                          _out_data_0th,
                          np.pad(_elm.data_2nd, 
-                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                )
-                        )
+                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))))
              + 2.*np.einsum("jkl,m->jklm",
                             np.pad(_out_data_1st, 
-                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                   ),
+                                   ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))),
                             np.pad(_elm.data_1st, 
-                                   (2*_out_dims_cvs, 0)
-                                   )
-                           )
+                                   (2*_out_dims_cvs, 0)))
             )
             _out_data_1st = \
             (_elm.data_0th*np.pad(_out_data_1st, 
-                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                  )
+                                  ((0, 0), (0, 0), (0, 2*_elm.dims_cvs)))
              + np.einsum("jk,l->jkl",
                          _out_data_0th,
                          np.pad(_elm.data_1st, 
-                                (2*_out_dims_cvs, 0)
-                                )
-                        )
+                                (2*_out_dims_cvs, 0)))
             )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
@@ -159,28 +145,21 @@ def _tensor_oper(args) -> QGoper:
             _out_data_2nd = \
             (np.einsum("lm,jk->jklm",
                        np.pad(_out_data_2nd, 
-                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                              ),
-                       _elm.data_0th
-                      )
+                              ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
+                       _elm.data_0th)
              + _out_data_0th*np.pad(_elm.data_2nd, 
-                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                    )
+                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
              + 2.*np.einsum("l,jkm->jklm",
                             np.pad(_out_data_1st, 
-                                   (0, 2*_elm.dims_cvs)
-                                   ),
+                                   (0, 2*_elm.dims_cvs)),
                             np.pad(_elm.data_1st, 
-                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
-                                   )
-                           )
+                                   ((0, 0), (0, 0), (2*_out_dims_cvs, 0))))
             )
             _out_data_1st = \
             (np.einsum("l,jk->jkl",
                        np.pad(_out_data_1st, 
                               (0, 2*_elm.dims_cvs)),
-                       _elm.data_0th
-                      )
+                       _elm.data_0th)
              + _out_data_0th*np.pad(_elm.data_1st, 
                                     ((0, 0), (0, 0), (2*_out_dims_cvs, 0)))
             )
@@ -256,8 +235,7 @@ def _tensor_oper(args) -> QGoper:
                   data_1st = _out_data_1st,
                   data_0th = _out_data_0th,
                   dims_cvs = _out_dims_cvs,
-                  dims_fls = _out_dims_fls
-                 )
+                  dims_fls = _out_dims_fls)
 
 
 def _tensor_state(args) -> QGstate:
@@ -285,19 +263,15 @@ def _tensor_state(args) -> QGstate:
         if not _out_isfls and not _elm.isfls:
             _out_data_2nd = \
             (np.pad(_out_data_2nd,
-                    ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                    )
+                    ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs)))
              + np.pad(_elm.data_2nd,
-                      ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                      )
+                      ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
             )
             _out_data_1st = \
             (np.pad(_out_data_1st,
-                    (0, 2*_elm.dims_cvs)
-                    )
+                    (0, 2*_elm.dims_cvs))
              + np.pad(_elm.data_1st, 
-                      (2*_out_dims_cvs, 0)
-                      )
+                      (2*_out_dims_cvs, 0))
             )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
@@ -306,28 +280,20 @@ def _tensor_state(args) -> QGstate:
             _out_data_2nd = \
             (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
                          np.pad(_out_data_2nd,
-                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
-                                )
-                        )
+                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))))
              + np.einsum("jk,lm->jklm",
                          np.where(_out_data_0th != 0, 1, 0),
                          np.pad(_elm.data_2nd,
-                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
-                                )
-                        )
+                                ((2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))))
             )
             _out_data_1st = \
             (np.multiply(np.where(_elm.data_0th != 0, 1, 0),
                          np.pad(_out_data_1st,
-                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
-                                )
-                        )
+                                ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))))
              + np.einsum("jk,l->jkl",
                          np.where(_out_data_0th != 0, 1, 0),
                          np.pad(_elm.data_1st,
-                                (2*_out_dims_cvs, 0)
-                                )
-                        )
+                                (2*_out_dims_cvs, 0)))
             )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
@@ -337,25 +303,19 @@ def _tensor_state(args) -> QGstate:
             (np.einsum("lm,jk->jklm",
                        np.pad(_out_data_2nd,
                               ((0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))),
-                              np.where(_elm.data_0th != 0, 1, 0)
-                       )
+                              np.where(_elm.data_0th != 0, 1, 0))
              + np.multiply(np.where(_out_data_0th != 0, 1, 0),
                            np.pad(_elm.data_2nd,
-                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0)))
-                           )
+                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))))
             )
             _out_data_1st = \
             (np.einsum("l,jk->jkl",
                        np.pad(_out_data_1st,
-                              (0, 2*_elm.dims_cvs)
-                              ),
-                       np.where(_elm.data_0th != 0, 1, 0)
-                       )
+                              (0, 2*_elm.dims_cvs)),
+                       np.where(_elm.data_0th != 0, 1, 0))
              + np.multiply(np.where(_out_data_0th != 0, 1, 0),
                            np.pad(_elm.data_1st,
-                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
-                                  )
-                          )
+                                  ((0, 0), (0, 0), (2*_out_dims_cvs, 0))))
             )
             _out_data_0th = _out_data_0th*_elm.data_0th
             _out_dims_cvs += _elm.dims_cvs
@@ -418,5 +378,4 @@ def _tensor_state(args) -> QGstate:
                    data_1st = _out_data_1st,
                    data_0th = _out_data_0th,
                    dims_cvs = _out_dims_cvs,
-                   dims_fls = _out_dims_fls
-                   )
+                   dims_fls = _out_dims_fls)

@@ -442,11 +442,11 @@ class QGoper(object):
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
     
-    def _invalidate(self, attr):
+    def _invalidate(self, attr_list):
         # Remove cached properties that have been set.
-        for key in attr:
-            if key in self.__dict__: 
-                del self.__dict__[key]
+        for attr in attr_list:
+            if attr in self.__dict__: 
+                del self.__dict__[attr]
 
     '''
     ---------------
