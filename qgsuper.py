@@ -370,16 +370,16 @@ class QGsuper(object):
         # Initialize array of zeroth-order quadrature superoperator coefficients
         if isinstance(data, (np.ndarray, list)):
             if np.shape(data) == self.shape_0th:
-                self._data_0th = np.asarray(data, dtype = complex)
+                self._data_0th = np.asarray(data, dtype=complex)
             else:
                 raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
         elif isinstance(data, (numbers.Number, np.number)):
             if self.shape_0th == (1,):
-                self._data_0th = np.array([data], dtype = complex)
+                self._data_0th = np.array([data], dtype=complex)
             else:
                 raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
         elif data is None:
-                self._data_0th = np.zeros(self.shape_0th, dtype = complex)
+                self._data_0th = np.zeros(self.shape_0th, dtype=complex)
         else:
             raise TypeError("data_0th is not of a supported type: array, list, or number.")
         # Invalidate any dependent cached properties
@@ -409,23 +409,24 @@ class QGsuper(object):
     @cached_property
     def wigner_2nd_deriv_var(self) -> npt.NDArray:
         # Drift matrix, system dynamics matrix
-        if self.isfls == True:
+        if self.isfls:
+            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
+                     - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
+                     + (self.data_2nd_m - np.transpose(self.data_2nd_m, [0,1,3,2])))
             return np.einsum("jk,lmkn->lmjn",
                              (1j/2)*self.symform,
-                             ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
-                              - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
-                              + (self.data_2nd_m - np.transpose(self.data_2nd_m, [0,1,3,2])))
-                              )
+                             _data)
         else:
-            return (1j/2)*self.symform@((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
-                                        - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
-                                        + (self.data_2nd_m - np.transpose(self.data_2nd_m)))
+            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
+                     - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
+                     + (self.data_2nd_m - np.transpose(self.data_2nd_m)))
+            return (1j/2)*self.symform @ _data
     
     @cached_property
     def wigner_2nd_var(self) -> npt.NDArray:
         # Riccati coupling/feedback matrix, information-gain‑matrix, measurement‑error‑weight, trap/potential stiffness
         # quadratic / nonlinear coupling, gain or feedback matrix, Measurement‑based/feedback control
-        if self.isfls == True:
+        if self.isfls:
             return (-(1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
                     -(1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
                     -(self.data_2nd_m + np.transpose(self.data_2nd_m, [0,1,3,2])))
@@ -437,19 +438,19 @@ class QGsuper(object):
     @cached_property
     def wigner_2nd_deriv(self) -> npt.NDArray:
         # Diffusion matrix, noise matrix
-        if self.isfls == True:
+        if self.isfls:
+            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
+                     + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
+                     - (self.data_2nd_m + np.transpose(self.data_2nd_m, [0,1,3,2])))
             return np.einsum("jk,lmkn,np->lmjp",
                              (1/4)*self.symform,
-                             ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
-                              + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
-                              - (self.data_2nd_m + np.transpose(self.data_2nd_m, [0,1,3,2]))),
-                              self.symform
-                              )
-        else:   
-            return (1/4)*self.symform @ ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
-                                         + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
-                                         - (self.data_2nd_m + np.transpose(self.data_2nd_m))
-                                         ) @ self.symform
+                             _data,
+                             self.symform)
+        else:
+            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
+                     + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
+                     - (self.data_2nd_m + np.transpose(self.data_2nd_m)))
+            return (1/4)*self.symform @ _data @ self.symform
     
     @cached_property
     def wigner_1st_var(self) -> npt.NDArray:
@@ -461,28 +462,26 @@ class QGsuper(object):
     def wigner_1st_deriv(self) -> npt.NDArray:
         # Friction vector, drift‑shift coefficient vector, 
         # displacement / driving vector, forcing term, affine drift / exogenous input
-        if self.isfls == True:  
+        _data = self.data_1st_l - self.data_1st_r 
+        if self.isfls:  
             return np.einsum("jk,lmj->lmk",
                              (1j/2)*self.symform,
-                             self.data_1st_l - self.data_1st_r
-                             )
+                             _data)
         else:   
-            return (1j/2)*self.symform @ (self.data_1st_l - self.data_1st_r)                                          
+            return (1j/2)*self.symform @ _data                                  
         
     @cached_property
     def wigner_0th(self) -> npt.NDArray:
         # Decay term, sink term, decay rate of the state norm, loss rate
-        if self.isfls == True:
+        _data = (1/2)*(self.data_2nd_l + self.data_2nd_r) - self.data_2nd_m
+        if self.isfls:
             return (-self.data_0th 
                     + (1j/2)*np.einsum("jk,lmkj->lm",
                                        self.symform,
-                                       (1/2)*(self.data_2nd_l + self.data_2nd_r) - self.self.data_2nd_m
-                                       ))
+                                       _data))
         else:
             return (-self.data_0th 
-                    + (1j/2)*np.array(np.trace(self.symform 
-                                               @ ((1/2)*(self.data_2nd_l + self.data_2nd_r) - self.data_2nd_m)
-                                               )))
+                    + (1j/2)*np.array(np.trace(self.symform @ _data)))
                 
     @property
     def dims_cvs(self) -> int:
@@ -518,20 +517,17 @@ class QGsuper(object):
             return (np.prod(self.dims_fls[0]).item(), 
                     np.prod(self.dims_fls[1]).item(), 
                     2*self.dims_cvs, 
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
         else:
             return (2*self.dims_cvs, 
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
         
     @property
     def shape_1st(self) -> tuple[int,int,int] | tuple[int]:
         if self.isfls:
             return (np.prod(self.dims_fls[0]).item(),
                     np.prod(self.dims_fls[1]).item(),
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
         else:
             return (2*self.dims_cvs,)
         
@@ -539,8 +535,7 @@ class QGsuper(object):
     def shape_0th(self) -> tuple[int,int] | tuple[int]:
         if self.isfls:
             return (np.prod(self.dims_fls[0]).item(), 
-                    np.prod(self.dims_fls[1]).item()
-                    )
+                    np.prod(self.dims_fls[1]).item())
         else:
             return (1,)
     
@@ -549,7 +544,7 @@ class QGsuper(object):
         return self._iscvs
     @iscvs.setter
     def iscvs(self, dims):
-        if dims == 0 or dims == None:
+        if dims == 0 or dims is None:
             self._iscvs = False
         else:
             self._iscvs = True
@@ -559,42 +554,42 @@ class QGsuper(object):
         return self._isfls     
     @isfls.setter
     def isfls(self, dims):
-        if dims == [[[],[]],[[],[]]] or dims == None:
+        if dims == [[[],[]],[[],[]]] or dims is None:
             self._isfls = False
         else:
             self._isfls = True
  
     @cached_property
     def is2nd(self) -> bool:
-        if ((np.all(np.abs(self.data_2nd_l) < qgauss.settings.atol) or
-             np.all(np.abs(self.data_2nd_r) < qgauss.settings.atol) or
-             np.all(np.abs(self.data_2nd_m) < qgauss.settings.atol))
+        if ((QGsuper._iszero(self.data_2nd_l) or
+             QGsuper._iszero(self.data_2nd_r) or
+             QGsuper._iszero(self.data_2nd_m))
              or
             (self.data_2nd_l.size == 0 or
              self.data_2nd_r.size == 0 or
              self.data_2nd_m.size == 0)
-            ):
+           ):
             return False
         else:
             return True
     
     @cached_property
     def is1st(self) -> bool:
-        if ((np.all(np.abs(self.data_1st_l) < qgauss.settings.atol) or
-             np.all(np.abs(self.data_1st_r) < qgauss.settings.atol))
+        if ((QGsuper._iszero(self.data_1st_l) or
+             QGsuper._iszero(self.data_1st_r))
              or
             (self.data_1st_l.size == 0 or
              self.data_1st_r.size == 0)
-            ):
+           ):
             return False
         else:
             return True
     
     @cached_property
     def is0th(self) -> bool:
-        if (np.all(np.abs(self.data_0th) < qgauss.settings.atol) or
+        if (QGsuper._iszero(self.data_0th) or
             self.data_0th.size == 0
-            ):
+           ):
             return False
         else:
             return True
@@ -655,11 +650,13 @@ class QGsuper(object):
     _attr_0th = ['is0th','wigner_0th']
     _attr_gen = ['iscoherent','isgauss']
 
-    def _invalidate(self, attr):
+    def _invalidate(self, attr_list):
         # Remove cached properties that have been set.
-        for key in attr:
+        for key in attr_list:
             if key in self.__dict__: 
                 del self.__dict__[key]
+            else:
+                pass
 
     '''
     ---------------
@@ -682,8 +679,7 @@ class QGsuper(object):
                                data_1st_r = self.data_1st_r + other.data_1st_r,
                                data_0th = self.data_0th + other.data_0th,
                                dims_cvs = self.dims_cvs,
-                               dims_fls = self.dims_fls
-                              )
+                               dims_fls = self.dims_fls)
             else:
                 raise ValueError("Cannot perform addition operation between " \
                 "QGsupers with different dimensions.")
@@ -714,8 +710,7 @@ class QGsuper(object):
                        data_1st_r = -self.data_1st_r,
                        data_0th = -self.data_0th,
                        dims_cvs = self.dims_cvs,
-                       dims_fls = self.dims_fls
-                      )
+                       dims_fls = self.dims_fls)
 
     ### Multiplication and division of QGosupers ###
 
@@ -729,8 +724,7 @@ class QGsuper(object):
                            data_1st_r = other*self.data_1st_r,
                            data_0th = other*self.data_0th,
                            dims_cvs = self.dims_cvs,
-                           dims_fls = self.dims_fls
-                          )
+                           dims_fls = self.dims_fls)
         else:
             raise TypeError("Cannot perform multiplication operation between " \
             "the types QGsuper and " + type(other).__name__ + ".")
@@ -753,8 +747,7 @@ class QGsuper(object):
                            data_1st_r = self.data_1st_r/other,
                            data_0th = self.data_0th/other,
                            dims_cvs = self.dims_cvs,
-                           dims_fls = self.dims_fls
-                          )
+                           dims_fls = self.dims_fls)
         else:
             raise TypeError("Cannot perform division operation between the " \
             "types QGsuper and " + type(other).__name__ + ".")
@@ -763,16 +756,18 @@ class QGsuper(object):
 
     def __eq__(self, other: QGsuper) -> bool:
         # Check equality of QGsupers #
+        same_dims = (self.dims_fls == other.dims_fls and
+                     self.dims_cvs == other.dims_cvs)
+        same_elems = (QGsuper._iszero(self.data_2nd_l - other.data_2nd_l) and
+                      QGsuper._iszero(self.data_2nd_r - other.data_2nd_r) and
+                      QGsuper._iszero(self.data_2nd_m - other.data_2nd_m) and
+                      QGsuper._iszero(self.data_1st_l - other.data_1st_l) and
+                      QGsuper._iszero(self.data_1st_r - other.data_1st_r) and
+                      QGsuper._iszero(self.data_0th - other.data_0th))
         if (isinstance(other, QGsuper) and
-            (self.dims_fls == other.dims_fls) and
-            (self.dims_cvs == other.dims_cvs) and
-            np.all(np.abs(self.data_2nd_l - other.data_2nd_l) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_2nd_r - other.data_2nd_r) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_2nd_m - other.data_2nd_m) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_1st_l - other.data_1st_l) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_1st_r - other.data_1st_r) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_0th - other.data_0th) < qgauss.settings.atol)
-            ):
+            same_dims and
+            same_elems
+           ):
             return True
         else:
             return False
@@ -787,8 +782,7 @@ class QGsuper(object):
                            data_1st_l = self.data_1st_l[index],
                            data_1st_r = self.data_1st_r[index],
                            data_0th = self.data_0th[index],
-                           dims_cvs = self.dims_cvs
-                          )
+                           dims_cvs = self.dims_cvs)
         else:
             raise ValueError("QGsuper requires an FLS and CV component to " \
             "use this method. Access QGsuper data arrays individually if " \
@@ -802,41 +796,30 @@ class QGsuper(object):
         # Generate indices to remove from CVS part
         _ind = [n for x in args for n in (2*x-2, 2*x-1)]
 
-        if self.isfls == False:
-            return QGsuper(data_2nd_l = np.delete(np.delete(self.data_2nd_l, 
-                                                            _ind, axis=1), 
-                                                            _ind, axis=0),
-                           data_2nd_r = np.delete(np.delete(self.data_2nd_r, 
-                                                            _ind, axis=1), 
-                                                            _ind, axis=0),
-                           data_2nd_m = np.delete(np.delete(self.data_2nd_m, 
-                                                            _ind, axis=1), 
-                                                            _ind, axis=0),
-                           data_1st_l = np.delete(self.data_1st_l, 
-                                                  _ind, axis=0),
-                           data_1st_r = np.delete(self.data_1st_r, 
-                                                  _ind, axis=0),
-                           data_0th = self.data_0th,
-                           dims_cvs = self.dims_cvs - len(args)
-                           )
-        else:
-            return QGsuper(data_2nd_l = np.delete(np.delete(self.data_2nd_l, 
-                                                            _ind, axis=3), 
-                                                            _ind, axis=2),
-                           data_2nd_r = np.delete(np.delete(self.data_2nd_r, 
-                                                            _ind, axis=3), 
-                                                            _ind, axis=2),
-                           data_2nd_m = np.delete(np.delete(self.data_2nd_m, 
-                                                            _ind, axis=3), 
-                                                            _ind, axis=2),
-                           data_1st_l = np.delete(self.data_1st_l, 
-                                                  _ind, axis=2),
-                           data_1st_r = np.delete(self.data_1st_r, 
-                                                  _ind, axis=2),
+        if self.isfls:
+            return QGsuper(data_2nd_l = \
+                           np.delete(np.delete(self.data_2nd_l, _ind, axis=3), _ind, axis=2),
+                           data_2nd_r = \
+                           np.delete(np.delete(self.data_2nd_r, _ind, axis=3), _ind, axis=2),
+                           data_2nd_m = \
+                           np.delete(np.delete(self.data_2nd_m, _ind, axis=3), _ind, axis=2),
+                           data_1st_l = np.delete(self.data_1st_l, _ind, axis=2),
+                           data_1st_r = np.delete(self.data_1st_r, _ind, axis=2),
                            data_0th = self.data_0th,
                            dims_fls = self.dims_fls,
-                           dims_cvs = self.dims_cvs - len(args)
-                           )
+                           dims_cvs = self.dims_cvs - len(args))
+        else:
+            return QGsuper(data_2nd_l = \
+                           np.delete(np.delete(self.data_2nd_l, _ind, axis=1), _ind, axis=0),
+                           data_2nd_r = \
+                           np.delete(np.delete(self.data_2nd_r, _ind, axis=1), _ind, axis=0),
+                           data_2nd_m = \
+                           np.delete(np.delete(self.data_2nd_m, _ind, axis=1), _ind, axis=0),
+                           data_1st_l = np.delete(self.data_1st_l, _ind, axis=0),
+                           data_1st_r = np.delete(self.data_1st_r, _ind, axis=0),
+                           data_0th = self.data_0th,
+                           dims_cvs = self.dims_cvs - len(args))
+
    
     def keep(self, *args) -> QGsuper:
         # Keeps CV modes specified in args from self, and return a new QGsuper
@@ -858,8 +841,7 @@ class QGsuper(object):
                        data_1st_r = np.conj(self.data_1st_r),
                        data_0th = np.conj(self.data_0th),
                        dims_cvs = self.dims_cvs,
-                       dims_fls = self.dims_fls
-                       )
+                       dims_fls = self.dims_fls)
 
     def trans(self, level = None) -> QGsuper:
         # Transpose of arrays within the QGsuper. Can specify the level at 
@@ -874,8 +856,7 @@ class QGsuper(object):
                                data_1st_r = np.transpose(self.data_1st_r, [1,0,2]),
                                data_0th = np.transpose(self.data_0th, [1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'FLS':
                 return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l, [1,0,2,3]),
                                data_2nd_r = np.transpose(self.data_2nd_r, [1,0,2,3]),
@@ -884,8 +865,7 @@ class QGsuper(object):
                                data_1st_r = np.transpose(self.data_1st_r, [1,0,2]),
                                data_0th = np.transpose(self.data_0th, [1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'CVS':
                 return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l, [0,1,3,2]),
                                data_2nd_r = np.transpose(self.data_2nd_r, [0,1,3,2]),
@@ -894,8 +874,7 @@ class QGsuper(object):
                                data_1st_r = self.data_1st_r,
                                data_0th = self.data_0th,
                                dims_fls = self.dims_fls,
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
         else:
             if level == 'CVS' or level is None:
                 return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l),
@@ -904,8 +883,7 @@ class QGsuper(object):
                                data_1st_l = np.transpose(self.data_1st_l),
                                data_1st_r = np.transpose(self.data_1st_r),
                                data_0th = np.transpose(self.data_0th),
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'FLS':
                 return self
 
@@ -920,8 +898,7 @@ class QGsuper(object):
                            data_1st_r = np.transpose(np.conj(self.data_1st_r), [1,0,2]),
                            data_0th = np.transpose(np.conj(self.data_0th), [1,0]),
                            dims_fls = [self.dims_fls[1], self.dims_fls[0]],
-                           dims_cvs = self.dims_cvs
-                           )
+                           dims_cvs = self.dims_cvs)
         else:
             return QGsuper(data_2nd_l = np.transpose(np.conj(self.data_2nd_l)),
                            data_2nd_r = np.transpose(np.conj(self.data_2nd_r)),
@@ -930,8 +907,7 @@ class QGsuper(object):
                            data_1st_r = np.transpose(np.conj(self.data_1st_r)),
                            data_0th = np.transpose(np.conj(self.data_0th)),
                            dims_fls = [self.dims_fls[1], self.dims_fls[0]],
-                           dims_cvs = self.dims_cvs
-                           )
+                           dims_cvs = self.dims_cvs)
         
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGsuper:
         # Private void function to remove small magnitude elements from data
@@ -952,3 +928,9 @@ class QGsuper(object):
 
         np.real(self.data_0th)[np.abs(np.real(self.data_0th)) < tol] = 0
         np.imag(self.data_0th)[np.abs(np.imag(self.data_0th)) < tol] = 0
+
+    @staticmethod
+    def _iszero(data: npt.NDArray) -> bool:
+        # Checks whether the magnitude of all elements in the array are
+        # within tolerance of zero
+        return np.all(np.abs(data) < qgauss.settings.atol)

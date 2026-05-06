@@ -95,7 +95,7 @@ class QGstate(object):
     data_1st/data_mean : array
         Tensor of 1D arrays containing the means, or first-order cumulants/raw 
         moments, E[X^1].
-    data_0th/data_norm : array
+    data_0th/data_norm/data_fls : array
         Tensor containing the norms, or zeroth-order cumulants of the 
         distribution, E[X^0].
     dims_cvs : int
@@ -263,8 +263,7 @@ class QGstate(object):
                 if self.isfls:
                     self._data_1st = np.einsum("jk,jkl->jkl", 
                                                np.where(self.data_0th!=0, 1, 0), 
-                                               np.asarray(data, dtype=complex)
-                                               )
+                                               np.asarray(data, dtype=complex))
                 else:
                     self._data_1st = np.asarray(data, dtype=complex)
             else:
@@ -303,7 +302,8 @@ class QGstate(object):
     # along with associated getattr and setattr.
     _aliases = {'data_cov': 'data_2nd', 
                 'data_mean': 'data_1st', 
-                'data_norm': 'data_0th'}
+                'data_norm': 'data_0th',
+                'data_fls': 'data_0th'}
     
     def __getattr__(self, name):
         if name in self._aliases:
@@ -343,33 +343,29 @@ class QGstate(object):
 
     @property
     def shape_2nd(self) -> tuple[int,int,int,int] | tuple[int,int]:
-        if self._isfls:
+        if self.isfls:
             return (np.prod(self.dims_fls[0]).item(), 
                     np.prod(self.dims_fls[1]).item(), 
                     2*self.dims_cvs, 
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
         else:
             return (2*self.dims_cvs, 
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
     
     @property
     def shape_1st(self) -> tuple[int,int,int] | tuple[int]:
-        if self._isfls:
+        if self.isfls:
             return (np.prod(self.dims_fls[0]).item(), 
                     np.prod(self.dims_fls[1]).item(), 
-                    2*self.dims_cvs
-                    )
+                    2*self.dims_cvs)
         else:
             return (2*self.dims_cvs,)
     
     @property
     def shape_0th(self) -> tuple[int,int] | tuple[int]:
-        if self._isfls:
+        if self.isfls:
             return (np.prod(self.dims_fls[0]).item(), 
-                    np.prod(self.dims_fls[1]).item()
-                    )
+                    np.prod(self.dims_fls[1]).item())
         else:
             return (1,)
     
@@ -378,7 +374,7 @@ class QGstate(object):
         return self._iscvs
     @iscvs.setter
     def iscvs(self, dims):
-        if dims == 0 or dims == None:
+        if dims == 0 or dims is None:
             self._iscvs = False
         else:
             self._iscvs = True
@@ -388,7 +384,7 @@ class QGstate(object):
         return self._isfls     
     @isfls.setter
     def isfls(self, dims):
-        if dims == [[],[]] or dims == None:
+        if dims == [[],[]] or dims is None:
             self._isfls = False
         else:
             self._isfls = True
@@ -433,7 +429,7 @@ class QGstate(object):
                 evals = eigvals(_re_precision_mat)
                 if (np.all(evals > 0) and 
                     np.all(_re_precision_mat == np.transpose(_re_precision_mat))
-                    ):
+                   ):
                     return True
                 else:
                     return False
@@ -473,26 +469,25 @@ class QGstate(object):
     @staticmethod
     def _addcv_(self: QGstate, 
                 other: QGstate
-                ) -> QGstate:
+               ) -> QGstate:
         # Adder for two CV-only QGstates
-        if (np.all(np.abs(self.data_2nd-other.data_2nd) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_1st-other.data_1st) < qgauss.settings.atol)
-            ):
+        if (QGstate._iszero(self.data_2nd - other.data_2nd) and
+            QGstate._iszero(self.data_1st - other.data_1st)
+           ):
             return QGstate(data_2nd = self.data_2nd,
                            data_1st = self.data_1st,
                            data_0th = self.data_0th + other.data_0th,
                            dims_fls = self.dims_fls,
-                           dims_cvs = self.dims_cvs
-                           )
-        elif (np.all(np.abs(self.data_2nd) < qgauss.settings.atol) and
-              np.all(np.abs(self.data_1st) < qgauss.settings.atol) and
-              np.abs(self.data_0th) < qgauss.settings.atol
-              ):
+                           dims_cvs = self.dims_cvs)
+        elif (QGstate._iszero(self.data_2nd) and
+              QGstate._iszero(self.data_1st) and
+              QGstate._iszero(self.data_0th)
+             ):
             return QGstate(other)
-        elif (np.all(np.abs(other.data_2nd) < qgauss.settings.atol) and
-              np.all(np.abs(other.data_1st) < qgauss.settings.atol) and
-              np.abs(other.data_0th) < qgauss.settings.atol
-              ):
+        elif (QGstate._iszero(other.data_2nd) and
+              QGstate._iszero(other.data_1st) and
+              QGstate._iszero(other.data_0th)
+             ):
             return QGstate(self)
         else:
             raise ValueError("Addition of QGstates produces result which is not Gaussian.")
@@ -508,7 +503,7 @@ class QGstate(object):
     @staticmethod
     def list_to_fls(input: QGstate, 
                     dims_fls: list[list[int]]
-                    ) -> QGstate:
+                   ) -> QGstate:
         # Convert list of QGstates which are CV systems only to a single 
         # QGstate with FLS component
         _col = range(np.prod(dims_fls[0]))
@@ -523,18 +518,17 @@ class QGstate(object):
                                                 for qc in _col]
                                                 for qr in _row]),                      
                         dims_cvs = input[0][0].dims_cvs,
-                        dims_fls = dims_fls
-                        )     
+                        dims_fls = dims_fls)     
       
     def __add__(self, other: QGstate) -> QGstate:
         # Addition with self.QGstate on the left
         if isinstance(other, QGstate):
             if ((self.dims_cvs == other.dims_cvs) and 
-                (self.dims_fls == other.dims_fls)):
+                (self.dims_fls == other.dims_fls)
+               ):
                 if self.isfls and not self.iscvs:
                     return QGstate(data_0th = self.data_0th + other.data_0th,
-                                   dims_fls = self.dims_fls
-                                   )
+                                   dims_fls = self.dims_fls)
                 elif not self.isfls and self.iscvs:
                     return QGstate._addcv_(self,other)
                 elif self.isfls and self.iscvs:
@@ -570,8 +564,7 @@ class QGstate(object):
                        data_1st = self.data_1st,
                        data_0th = -self.data_0th,
                        dims_fls = self.dims_fls,
-                       dims_cvs = self.dims_cvs
-                       )
+                       dims_cvs = self.dims_cvs)
         
     ### Multiplication and division of QGstates ###
     '''
@@ -590,8 +583,7 @@ class QGstate(object):
                            data_1st = self.data_1st,
                            data_0th = other*self.data_0th,
                            dims_fls = self.dims_fls,
-                           dims_cvs = self.dims_cvs
-                           )
+                           dims_cvs = self.dims_cvs)
         else:
             raise TypeError("Cannot perform multiplication between QGstate "
             "and type" + type(other).__name__ + ".")
@@ -607,8 +599,7 @@ class QGstate(object):
                            data_1st = self.data_1st,
                            data_0th = self.data_0th/other,
                            dims_fls = self.dims_fls,
-                           dims_cvs = self.dims_cvs
-                          )
+                           dims_cvs = self.dims_cvs)
         else:
             raise TypeError("Cannot perform division between the QGstate "
             "and type" + type(other).__name__ + ".")
@@ -617,13 +608,15 @@ class QGstate(object):
 
     def __eq__(self, other: QGstate) -> bool:
         # Check equality of QGstates
-        if (isinstance(other, QGstate) and
-            (self.dims_fls == other.dims_fls) and
-            (self.dims_cvs == other.dims_cvs) and
-            np.all(np.abs(self.data_2nd-other.data_2nd) < qgauss.settings.atol) and 
-            np.all(np.abs(self.data_1st-other.data_1st) < qgauss.settings.atol) and
-            np.all(np.abs(self.data_0th-other.data_0th) < qgauss.settings.atol)
-            ):
+        same_dims = (self.dims_fls == other.dims_fls and
+                     self.dims_cvs == other.dims_cvs)
+        same_elems = (QGstate._iszero(self.data_2nd - other.data_2nd) and
+                      QGstate._iszero(self.data_1st - other.data_1st) and
+                      QGstate._iszero(self.data_0th - other.data_0th))
+        if (isinstance(other, QGstate) and 
+            same_dims and 
+            same_elems
+           ):
             return True
         else:
             return False
@@ -639,8 +632,7 @@ class QGstate(object):
             return QGstate(data_2nd = self.data_2nd[index],
                            data_1st = self.data_1st[index],
                            data_0th = self.data_0th[index],
-                           dims_cvs = self.dims_cvs
-                           )
+                           dims_cvs = self.dims_cvs)
         else:
             raise ValueError("QGstate requires an FLS and CV component to use "\
             "this method. Access arrays individually for specific elements.")
@@ -653,25 +645,20 @@ class QGstate(object):
         # Generate indices to remove from CVS part
         _ind = [n for x in args for n in (2*x-2, 2*x-1)]
 
-        if self.isfls == False:
-            return QGstate(data_2nd = np.delete(np.delete(self.data_2nd, 
-                                                          _ind, axis=1), 
-                                                          _ind, axis=0),
-                           data_1st = np.delete(self.data_1st, 
-                                                _ind, axis=0),
-                           data_0th = self.data_0th,
-                           dims_cvs = self.dims_cvs - len(args)
-                           )
-        else:
-            return QGstate(data_2nd = np.delete(np.delete(self.data_2nd, 
-                                                          _ind, axis=3), 
-                                                          _ind, axis=2),
-                           data_1st = np.delete(self.data_1st, 
-                                                _ind, axis=2),
+        if self.isfls:
+            return QGstate(data_2nd = \
+                           np.delete(np.delete(self.data_2nd, _ind, axis=3), _ind, axis=2),
+                           data_1st = np.delete(self.data_1st, _ind, axis=2),
                            data_0th = self.data_0th,
                            dims_fls = self.dims_fls,
-                           dims_cvs = self.dims_cvs - len(args)
-                           )
+                           dims_cvs = self.dims_cvs - len(args))
+        else:
+            return QGstate(data_2nd = \
+                           np.delete(np.delete(self.data_2nd, _ind, axis=1), _ind, axis=0),
+                           data_1st = np.delete(self.data_1st, _ind, axis=0),
+                           data_0th = self.data_0th,
+                           dims_cvs = self.dims_cvs - len(args))
+
    
     def keep(self, *args) -> QGstate:
         # Keeps CV modes specified in args from self, and return a new QGstate
@@ -690,8 +677,7 @@ class QGstate(object):
                        data_1st = np.conj(self.data_1st),
                        data_0th = np.conj(self.data_0th),
                        dims_fls = self.dims_fls,
-                       dims_cvs = self.dims_cvs
-                       )
+                       dims_cvs = self.dims_cvs)
 
     def trans(self, level = None) -> QGstate:
         # Transpose of arrays within the QGstate. Can specify the level at which 
@@ -703,29 +689,25 @@ class QGstate(object):
                                data_1st = np.transpose(self.data_1st, [1,0,2]),
                                data_0th = np.transpose(self.data_0th, [1,0]),
                                dims_fls = [self.dims_fls[1],self.dims_fls[0]],
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'FLS':
                 return QGstate(data_2nd = np.transpose(self.data_2nd, [1,0,2,3]),
                                data_1st = np.transpose(self.data_1st, [1,0,2]),
                                data_0th = np.transpose(self.data_0th, [1,0]),
                                dims_fls = [self.dims_fls[1],self.dims_fls[0]],
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'CVS':
                 return QGstate(data_2nd = np.transpose(self.data_2nd, [0,1,3,2]),
                                data_1st = self.data_1st,
                                data_0th = self.data_0th,
                                dims_fls = self.dims_fls,
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
         else:
             if level == 'CVS' or level is None:
                 return QGstate(data_2nd = np.transpose(self.data_2nd),
                                data_1st = self.data_1st,
                                data_0th = self.data_0th,
-                               dims_cvs = self.dims_cvs
-                               )
+                               dims_cvs = self.dims_cvs)
             elif level == 'FLS':
                 return self
 
@@ -736,14 +718,12 @@ class QGstate(object):
                            data_1st = np.transpose(np.conj(self.data_1st), [1,0,2]),
                            data_0th = np.transpose(np.conj(self.data_0th), [1,0]),
                            dims_fls = [self.dims_fls[1],self.dims_fls[0]],
-                           dims_cvs = self.dims_cvs
-                          )
+                           dims_cvs = self.dims_cvs)
         else:
             return QGstate(data_2nd = np.transpose(np.conj(self.data_2nd)),
                            data_1st = np.transpose(np.conj(self.data_1st)),
                            data_0th = np.transpose(np.conj(self.data_0th)),
-                           dims_cvs = self.dims_cvs
-                          )
+                           dims_cvs = self.dims_cvs)
 
     def trace(self) -> QGstate:
         # Trace of entire density. Checks that FLS component is square and that 
@@ -778,6 +758,12 @@ class QGstate(object):
         np.real(self.data_0th)[np.abs(np.real(self.data_0th)) < tol] = 0
         np.imag(self.data_0th)[np.abs(np.imag(self.data_0th)) < tol] = 0
 
+    @staticmethod
+    def _iszero(data: npt.NDArray) -> bool:
+        # Checks whether the magnitude of all elements in the array are
+        # within tolerance of zero
+        return np.all(np.abs(data) < qgauss.settings.atol)
+    
     @staticmethod
     def _set_dims_fls(data_2nd, data_1st, data_0th) -> list[list[int]]:
         # Static method to extract dimensions of the FLS component of the data 
@@ -828,7 +814,7 @@ class QGstate(object):
             if isinstance(data_0th, (np.ndarray, list)):
                 _data_0th_shape = np.array(data_0th).shape
                 _data_0th_axes = len(_data_0th_shape)
-                if data_0th_axes == 2:
+                if _data_0th_axes == 2:
                     _data_0th_shape_fls_row = _data_0th_shape[0]
                     _data_0th_shape_fls_col = _data_0th_shape[1]
             elif isinstance(data_0th, (numbers.Number, np.number)):
@@ -837,19 +823,19 @@ class QGstate(object):
                 raise ValueError("Shape of data_0th cannot be handled by the" \
                 " QGstate class and should be reformatted.")
         else:
-            data_0th_axes = 0
+            _data_0th_axes = 0
 
         # Check if the data has no FLS component.
         if (_data_2nd_axes in (0,2) and 
             _data_1st_axes in (0,1) and
             _data_0th_axes in (0,1)
-            ):
+           ):
             return [[],[]]
         # Else, check that the data has the correct number of axes.
         elif (_data_2nd_axes in (0,4) and
               _data_1st_axes in (0,3) and
               _data_0th_axes in (0,2)
-              ):
+             ):
             # Check that the FLS dimensions are consistent.
             _data_shape_fls_row = list(set((_data_2nd_shape_fls_row,
                                             _data_1st_shape_fls_row,
@@ -927,7 +913,7 @@ class QGstate(object):
         if ((_data_2nd_axes == 0) and 
             (_data_1st_axes == 0) and 
             (_data_0th_axes in (0,2))
-            ):
+           ):
             return 0
         # Check that the CVS dimensions are consistent.
         _data_shape_cvs = list(set((_data_2nd_shape_cvs_row,

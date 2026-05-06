@@ -40,7 +40,7 @@ def thermal(*nth: float | list[float] | npt.NDArray[float]) -> QGstate:
                    dims_cvs = len(_nth))
 
 def displaced(alpha: complex | list[float] | npt.NDArray[float] = None
-              ) -> QGstate:
+             ) -> QGstate:
     # Single mode coherent/displaced vacuum state
     if alpha is None:
         _q, _p = 0, 0
@@ -53,7 +53,7 @@ def displaced(alpha: complex | list[float] | npt.NDArray[float] = None
                    dims_cvs = 1)
 
 def sm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
-               ) -> QGstate:
+              ) -> QGstate:
     # Single-mode squeezed state
     if sqz is None:
         _r, _t = 0, 0
@@ -70,7 +70,7 @@ def sm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
                    dims_cvs = 1)
 
 def tm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
-               ) -> QGstate:
+              ) -> QGstate:
     # Two-mode squeezed state
     if sqz is None:
         _r, _t = 0, 0

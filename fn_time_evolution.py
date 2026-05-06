@@ -240,7 +240,7 @@ def moment_timeevolve(L0: QGsuper = None,
 
     # Extract arrays for the Fokker-Planck equation in Wigner phase-space from 
     # L0 and LT. For the time-dependent component, only save non-zero results.
-    if L0 == None:
+    if L0 is None:
         _A0 = np.zeros(rho0.shape_2nd)
         _B0 = np.zeros(rho0.shape_2nd)
         _C0 = np.zeros(rho0.shape_2nd)
@@ -584,7 +584,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     _tol = options['atol']
 
     # Generate arrays from the QGsuper inputs L0 and Lt
-    if L0 == None:
+    if L0 is None:
         _B0 = np.zeros(rho0.shape_2nd)
         _D0 = np.zeros(rho0.shape_1st)
         _G0 = np.zeros(rho0.shape_0th)

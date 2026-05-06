@@ -19,7 +19,7 @@ def measurement_rate(H_system: QGoper,
                      meas_mode: int | list[int] = None, 
                      noise_rest: float = 0, 
                      freq: float = 0, 
-                     ):
+                    ):
     """
     ---- Procedure ----
     Routine to calculate the steady-state measurement rate of some number of 
@@ -171,7 +171,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
                              meas_oper: QGoper, 
                              meas_mode: int | list[int], 
                              noise_rest: float = 0
-                             ):
+                            ):
     """
     Private helper function for measurement_rate, from which it takes its 
     parameters, and to which is returns the components of the measurement rate.
@@ -204,7 +204,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
     if pointer_A == pointer_B:
         meas_signal = 0
         meas_rate = 0
-        if meas_oper == None:
+        if meas_oper is None:
             meas_noise = 0
         else:
             _noise_A = meas_oper.data_1st @ pointer_A.data_2nd @ meas_oper.data_1st
@@ -215,7 +215,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
         # Check if a measurement operator has been provided, and if not pick the
         # quadrature operator which maximizes the difference between the 
         # displacement of both output states.
-        if meas_oper == None:
+        if meas_oper is None:
             _meas_oper = _optimum_measurement_operator(pointer_A = pointer_A,
                                                        pointer_B = pointer_B,
                                                        meas_mode = meas_mode)
@@ -235,7 +235,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
 def _optimum_measurement_operator(pointer_A: QGstate, 
                                   pointer_B: QGstate, 
                                   meas_mode: int | list[int] = None
-                                  )-> QGoper:
+                                 )-> QGoper:
     """
     Private helper function to calculate the optimal output measurement operator 
     to distinguish between two pointer state. The optimal operator is identified 
@@ -258,7 +258,7 @@ def _optimum_measurement_operator(pointer_A: QGstate,
     """
     _dims_bath = pointer_A.dims_cvs
     # IF no measurement mode(s) provided, assume all bath modes are monitored.
-    if meas_mode == None:
+    if meas_mode is None:
         _mode_index = np.ones(2*_dims_bath)
     # Else, generate a vector with zeroes in the quadratures of unmonitored 
     # modes, and ones in the position of quadratures of monitored modes.
@@ -286,7 +286,7 @@ def output_state(H_system: QGoper,
                  H_system_bath: QGoper, 
                  input_state: QGstate, 
                  freq: float = 0
-                 ) -> QGstate:
+                ) -> QGstate:
     """
     Routine to calculate the output state of the bath in frequency space. 
     Follows the quantum input-ouput theory of Gardiner & Collett.
@@ -324,26 +324,21 @@ def output_state(H_system: QGoper,
                    @ np.linalg.inv(A + 1j*freq*np.identity(2*_dims_sys))
                    @ _symform_sys
                    @ _Hsb
-                   + np.identity(2*_dims_bath)
-                   )
+                   + np.identity(2*_dims_bath))
     _s_mat_neg_freq = (-_symform_bath
                        @ np.transpose(_Hsb)
                        @ np.linalg.inv(A - 1j*freq*np.identity(2*_dims_sys))
                        @ _symform_sys
                        @ _Hsb
-                       + np.identity(2*_dims_bath)
-                       )
+                       + np.identity(2*_dims_bath))
     _t_mat_freq = (-_symform_bath
                    @ np.transpose(_Hsb)
-                   @ np.linalg.inv(A + 1j*freq*np.identity(2*_dims_sys))
-                   )
+                   @ np.linalg.inv(A + 1j*freq*np.identity(2*_dims_sys)))
 
     _output_mean = (_s_mat_freq @ input_state.data_1st
-                    + _t_mat_freq @ _symform_sys @ H_system.data_1st
-                    )
+                    + _t_mat_freq @ _symform_sys @ H_system.data_1st)
     _output_cov = (1/2)*(_s_mat_freq @ input_state.data_2nd @ np.transpose(_s_mat_neg_freq)
-                         + _s_mat_neg_freq @ input_state.data_2nd @ np.transpose(_s_mat_freq)
-                         )
+                         + _s_mat_neg_freq @ input_state.data_2nd @ np.transpose(_s_mat_freq))
     
     output = QGstate(data_2nd = _output_cov,
                      data_1st = _output_mean,

@@ -12,7 +12,7 @@ __all__ = ['moment_steadystate','backaction_steadystate']
 
 def moment_steadystate(L0: QGsuper,
                        tol: float = qgauss.settings.atol
-                       ) -> QGstate:
+                      ) -> QGstate:
     """
     Steady-state solver for the steady-state for a corresponding CV system 
     Liouvillian, L0. The function will exit if it is found that no steady-state 
@@ -92,8 +92,7 @@ def moment_steadystate(L0: QGsuper,
         # Array of stable eigenvectors
         _soln = _evecs[:,_stbl]                           
         _cov = (_soln[2*_dims:4*_dims,0:2*_dims] 
-                @ np.linalg.inv(_soln[0:2*_dims,0:2*_dims])
-                )
+                @ np.linalg.inv(_soln[0:2*_dims,0:2*_dims]))
         # Solve means
         _mean = la.solve(_A - _cov @ _B,-_F + _cov @ _D)
 
@@ -106,7 +105,7 @@ def moment_steadystate(L0: QGsuper,
 def backaction_steadystate(L0: QGsuper,
                            qubit: str = None,
                            tol: float = qgauss.settings.atol
-                           ) -> tuple[complex,complex,complex,complex] | \
+                          ) -> tuple[complex,complex,complex,complex] | \
                            tuple[npt.NDArray[complex],npt.NDArray[complex],
                                  npt.NDArray[complex],npt.NDArray[complex]] :
     """
@@ -212,7 +211,7 @@ def backaction_steadystate(L0: QGsuper,
 
 def _backaction_steadystate_solver(L0: QGsuper,
                                    tol: float
-                                   ) -> tuple[complex,complex,complex,complex]:
+                                  ) -> tuple[complex,complex,complex,complex]:
     """
     The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The 
     backaction rate is then extracted from dv/dt, defined by

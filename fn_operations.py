@@ -11,9 +11,9 @@ from .fn_utilities import *
 __all__ = ['expect','commutator','ASp_transform']
 
 
-def expect(oper: QGoper,
-           state: QGstate, 
-           ) -> complex:
+def expect(oper: QGoper, 
+           state: QGstate
+          ) -> complex:
     """
     ---- Prodcedure ----
     Expectation value of an operator "Q" for a specified state "ρ". For a system 
@@ -53,26 +53,24 @@ def expect(oper: QGoper,
         elif state.isfls:
             return sum(_expect_cv(state[j,k], oper[k,j])
                        for j,k in zip(np.prod(state.dims_fls[0]),
-                                      np.prod(state.dims_fls[1]))
-                       )
+                                      np.prod(state.dims_fls[1])))
         else:
             raise ValueError("State is not integrable, and hence the " \
             "expectation value cannot be computed.")
 
 
-def _expect_cv(state: QGstate, oper: QGoper):
+def _expect_cv(state: QGstate, oper: QGoper) -> complex:
     """ Private helper function for expect to calculate expectation value for 
     CV-only state and operator. """
     return state.data_0th*((1/2)*np.trace(state.data_2nd @ oper.data_2nd)
                            + (1/2)*(state.data_1st @ oper.data_2nd @ state.data_1st)
                            + (state.data_1st @ oper.data_1st)
-                           + oper.data_0th
-                           )
+                           + oper.data_0th)
 
 
 def commutator(A: QGoper, 
                B: QGoper
-               ) -> QGoper:
+              ) -> QGoper:
     """
     ---- Prodcedure ----
     Commutator of a pair of operators, [A,B]. Both operators must be FLS or 
@@ -111,8 +109,7 @@ def commutator(A: QGoper,
                       data_1st = 1j*(A.data_2nd @ symform @ B.data_1st
                                      + A.data_1st @ symform @ B.data_2nd),
                       data_0th = 1j*(A.data_1st @ symform @ B.data_1st),
-                      dims_cvs = A.dims_cvs
-                      )
+                      dims_cvs = A.dims_cvs)
     
     # Commutators of mixed FLS/CVS operators not yet implemented
     else:
@@ -121,7 +118,7 @@ def commutator(A: QGoper,
 
 def ASp_transform(input: QGstate | QGoper | QGsuper,
                   gen_oper: QGoper = None
-                  ) -> QGstate | QGoper | QGsuper:
+                 ) -> QGstate | QGoper | QGsuper:
     """
     ---- Prodcedure ----
     Note: This is a test function, and may eventually become a class method.
@@ -189,8 +186,7 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                        data_1st = _out_data_1st,
                        data_0th = input.data_0th,
                        dims_fls = input.dims_fls,
-                       dims_cvs = input.dims_cvs
-                       )
+                       dims_cvs = input.dims_cvs)
 
     elif isinstance(input, QGoper):
         if not input.isfls:
@@ -220,8 +216,7 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                       data_1st = _out_data_1st,
                       data_0th = _out_data_0th,
                       dims_fls = input.dims_fls,
-                      dims_cvs = input.dims_cvs
-                      )
+                      dims_cvs = input.dims_cvs)
     
     elif isinstance(input, QGsuper):
         if not input.isfls:
@@ -280,5 +275,4 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                        data_1st_r = _out_data_1st_r,
                        data_0th = _out_data_0th,
                        dims_fls = input.dims_fls,
-                       dims_cvs = input.dims_cvs
-                       )
+                       dims_cvs = input.dims_cvs)
