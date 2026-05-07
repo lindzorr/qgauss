@@ -6,6 +6,7 @@ settings = Settings()
 from .qgstate import *
 from .qgoper import *
 from .qgsuper import *
+from .qghle import *
 
 # Import tensor functions for Operators and States
 from .fn_tensor import *
