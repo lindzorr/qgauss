@@ -2,14 +2,13 @@ import sys
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy import linalg as la
 
 from .qgstate import QGstate
 from .qgoper import QGoper
 from .qghle import QGhle
 from .fn_utilities import *
 
-__all__ = ['measurement_rate','output_state']
+__all__ = ['measurement_rate']
 
 
 def measurement_rate(HLE: QGhle,

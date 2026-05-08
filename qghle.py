@@ -19,6 +19,37 @@ class QGhle(object):
     ---- Structure ----
     Write this and add more comments to code.
     
+    This function follows the theory developed in the following paper to 
+    describe the system-bath coupling and input-ouput theory:
+        Gardiner & Collett, Phys. Rev. A 31, 3761 (1985).
+    For the multimode case, supporting expressions can be found in Appendices A3 
+    and A4 in Miller and Orr et al, arXiv:2603.12312 (2026).
+    To summarize, we 
+    represent the system quadratures as
+        r_sys = (q1,p1,...,qN,pN),
+    while the bath quadratures are implicitly frequency dependent and are 
+    expressed as
+        r_bath = (q1(ω),p1(ω),...,qM(ω),pM(ω)).
+    In representing the system-bath Hamiltonian, the corresponding form, 
+    following Gardiner and Collett, will be
+        (1/√2π)*Integral[ (r_sys,r_bath)^T.H_system_bath.(r_sys,r_bath) dω],
+    where "H_system_bath" is the matrix of coefficients for the bilinear 
+    system-bath Hamiltonian. When constructing this Hamiltonian, omit the 
+    integral and instead construct the QGoper using
+        (r_sys,r_bath)^T.H_system_bath.(r_sys,r_bath)
+    where the bath modes must come after the system modes in the tensor product.
+    The data in the system-bath Hamiltonian will have the form 
+        H_system_bath.data_2nd = [[0,Hsb],[Hsb^T,0]]. 
+    If we represent the input states, ρ_in, as a QGstate, then the corresponding 
+    dissipation component in the Lindbladian will be:
+        Γ = Hsb @ (ρ_in.data_2nd + iΩ_2M/2) @ Hsb^T 
+        where Ω_2M is the 2Mx2M symplectic form.
+    This deomnstrates why this function does not use the QGsuper as its input, 
+    since Hsb is required to formulate the input-ouput theory for the 
+    measurement rate, but knowledge of Γ and ρ_in is insufficient to uniquqly 
+    determine the system-bath coupling Hsb.
+
+
     ---- Parameters ----
     inpt : QGhle
         Create a copy of another QGhle.
@@ -51,9 +82,14 @@ class QGhle(object):
             
     ---- Attributes ----
     h_sys : QGoper
+        System Hamiltonian, containing interactions between the CVS and FLS 
+        parts of the main system.
     h_sys_bath : QGoper
     h_sb : array
+
     in_bath : QGstate
+        In-field state of the input bath operators, representing the 
+        correlations of the Markovian noise from the bath.
     lme : QGsuper
         Lindblad master equation equivalent to the Heisenberg-Langevin equations
         for the internal modes of the system. Both h_sys and h_sys_bath must be
@@ -61,8 +97,12 @@ class QGhle(object):
         any FLS-basis, or else no Gaussian presrving superoperator will be
         constructed.
     dims_cvs : int
+        Number of continuous variable system (CVS) modes of the main system.
     dims_fls : list[list[int]]
+        Dimensions of the finite-level component of the main system (FLS).
     dims_bath : int
+        Number of continuous variable environments, each of which is comprised
+        of an infinite number of bosonic modes.
     symform_sys : array
         Symplectic form acting on either the system CVS modes. The
         generated matrix will have the form:
@@ -71,6 +111,12 @@ class QGhle(object):
         Symplectic form acting on either the bath degrees of freedom. The
         generated matrix will have the form:
             Ω = ⊗_{j=1}^dims_bath [[0,1],[-1,0]]
+    lme : QGsuper
+        Lindbladian of the main system which is equivalent to the main-system
+        dynamics described by the Heisenberg-Langevin equation. Corresponds to
+        a CPTP Gaussian-quantum channel, and can only be defined if both h_sys
+        and h_sys_bath are Hermitian Gaussian-state preserving Hamiltonians, and
+        if in_bath corresponds to a true quantum-state.
 
     ---- Methods ----
     scattering_mat : (QGhle, float, str) -> array
@@ -108,10 +154,20 @@ class QGhle(object):
         # only one need be provided.
         elif inpt is None:
             # Set dimensions of FLS and CVS components, along with the number
-            # of bath degrees of freedom. Currently, these parameters must be 
-            # specified for initialization to proceed, and cannot be inferred
-            # from the data.
-            self.dims_fls = dims_fls
+            # of bath degrees of freedom. Currently, the dims_cvs and dims_bath
+            # parameters must be specified for initialization to proceed, and 
+            # are not inferred from the data.
+
+            # Set dims_fls by successively checking each argument.
+            if dims_fls is not None:
+                self.dims_fls = dims_fls
+            elif h_sys is not None:
+                self.dims_fls = h_sys.dims_fls
+            elif h_sys_bath is not None:
+                self.dims_fls = h_sys_bath.dims_fls
+            else:
+                self.dims_fls = dims_fls
+            # Set dims_cvs and dims_bath
             self.dims_cvs = dims_cvs
             self.dims_bath = dims_bath
 
@@ -193,11 +249,11 @@ class QGhle(object):
             # FLS dimensions of data must either agree with those of self, 
             # or else the system-bath Hamiltonian is not coupled to an FLS.
             # In this case, data is tensored with an identity QGoper.
-            if (self.dims_cvs == data.dims_tot and
-                self.dims_fls == data.dims_fls
+            if (data.dims_fls == self.dims_fls and
+                data.dims_cvs == self.dims_tot
                ):
                 self._h_sys_bath = data
-            elif (self.dims_cvs == data.dims_tot and
+            elif (data.dims_cvs == self.dims_tot and
                   self._isfls and not data.isfls
                  ):
                 self._h_sys_bath = \
@@ -345,7 +401,7 @@ class QGhle(object):
     def lme(self) -> QGsuper:
         # Lindblad master equation in the form of a QGsuper, equivalent to
         # the Heisenberg-Langevin equations and in-field bath correlations.
-        if not (self.isherm and self.isgauss):
+        if not (self.isherm and self.isgauss and self.in_bath.isquantumstate):
             raise AttributeError("No CPTP and Gaussian-state preserving " \
             "Lindblad master equation can be associated with this set of " \
             "Heisenberg-Langevin equations.")

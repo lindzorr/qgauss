@@ -5,7 +5,8 @@ import numbers
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy.linalg import inv,eigvals
+from scipy.linalg import eigvals,eigh
+from .fn_utilities import trim
 
 __all__ = ['QGstate']
 
@@ -122,6 +123,18 @@ class QGstate(object):
         the diagonal are integrable for mixed state, or just the state if it is 
         CVS-only. FLS-only states are automatically integrable. The FLS 
         component must be square.
+    ispositive : bool
+        Does the QGstate represent a positive semi-definite operator on the
+        Hilbert space. Currently only implemented for CVS and FLS-only states.
+        The conditions is implemented differently for CVS and FLS-only states. 
+        For the FLS-only state, it is required that the eigenvalues are 
+        non-negative real numbers. For a CVS-only state, it is required that the
+        eigenvalues of (data_2nd + i*Ω/2) be non-negative real numbers.
+    isquantumstate : bool
+        Checks if a CVS or FLS-only quantum state satisfies the conditions of a
+        density operator, and so represents a true quantum state. In both cases, 
+        it is required that the state be Hermitian, positive semi-definite, and
+        of trace one.
     symform : array
         Symplectic form, for a system with N = dims_cvs, which has the form: : 
         Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
@@ -398,10 +411,13 @@ class QGstate(object):
         
     @cached_property
     def isnormalized(self) -> bool:
-        if self.trace() == 1:
-            return True
-        else:
+        if not self.isintegrable:
             return False
+        else:
+            if self.trace() == 1:
+                return True
+            else:
+                return False
     
     @cached_property
     def isintegrable(self) -> bool:
@@ -425,7 +441,7 @@ class QGstate(object):
                 return True
         else:
             try:
-                _re_precision_mat = np.real(inv(self.data_2nd))
+                _re_precision_mat = np.real(np.linalg.inv(self.data_2nd))
                 evals = eigvals(_re_precision_mat)
                 if (np.all(evals > 0) and 
                     np.all(_re_precision_mat == np.transpose(_re_precision_mat))
@@ -435,7 +451,34 @@ class QGstate(object):
                     return False
             except:
                 return False
+            
+    @cached_property
+    def ispositive(self: QGstate) -> bool:
+        if self.isfls and self.iscvs:
+            # Still need to determine how to calculate eigenvalues CVS-FLS of
+            # states where the CVS component is represented using its moments.
+            return NotImplemented
+        elif self.isfls:
+            if self.isherm:
+                return np.all(eigh(self.data_0th, eigvals_only=True) >= 0)
+            else:
+                _evals = trim(eigvals(self.data_0th))
+                return (np.all(np.isreal(_evals)) and np.all(_evals >= 0))
+        else:
+            if self.isherm:
+                return np.all(eigh(self.data_2nd + (1j/2)*self.symform, 
+                                   eigvals_only=True) >= 0)
+            else:
+                _evals = trim(eigvals(self.data_2nd + (1j/2)*self.symform))
+                return (np.all(np.isreal(_evals)) and np.all(_evals >= 0))
         
+    @cached_property
+    def isquantumstate(self) -> bool:
+        if self.isfls and self.iscvs:
+            return NotImplemented
+        else:
+            return (self.isherm and self.isnormalized and self.ispositive)
+
     @cached_property
     def symform(self) -> npt.NDArray:
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
