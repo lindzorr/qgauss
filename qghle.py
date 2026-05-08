@@ -24,16 +24,16 @@ class QGhle(object):
         Create a copy of another QGhle.
     h_sys : QGoper
         System Hamiltonian, containing interactions between the CVS and FLS 
-        parts of the main system. If system operators are tensored with bath
-        operators, the bath modes will be dropped. Must be Hermitian.
+        parts of the main system. If system operators are found to be tensored 
+        with bath operators, the bath modes will be dropped.
     h_sys_bath : QGoper
         System-bath Hamiltonian, representing coupling between the system and a
         Markovian bath. The Hamiltonian coupling is therefore independent of the
-        frequency of the bath modes. Must be Hermitian.
+        frequency of the bath modes.
     in_bath : QGstate
-        Infield state of the input bath operators, representing the correlations
-        of the Markovian noise from the bath. Delta-correlations of the
-        covariance is ignored.
+        In-field state of the input bath operators, representing the 
+        correlations of the Markovian noise from the bath. Delta-correlations
+        part of the covariances are ignored.
     dims_cvs : int
         Number of continuous variable system (CVS) modes.
     dims_fls : array_like
@@ -46,11 +46,8 @@ class QGhle(object):
         in the Heisenberg-Langevin equations:
             dr/dt = A.r - sqrt(k).r_in
         The argument decay_rate_mat corresponds to the array sqrt(k), from which
-        h_sys_bath is then constructed. For systems with an FLS component, this
-        may be a single matrix with dimensions 2*dims_bath x 2*dims_bath if the
-        decay rates of the CVS modes are independent of the FLS state. If the
-        decay rates are dependent on the FLS state, this argument be an 1D array
-        or list of decay_rate_mat's.
+        h_sys_bath is then constructed. Cannot be used for systems where 
+        dissipation is dependent on the FLS system, 
             
     ---- Attributes ----
     h_sys : QGoper
@@ -59,7 +56,10 @@ class QGhle(object):
     in_bath : QGstate
     lme : QGsuper
         Lindblad master equation equivalent to the Heisenberg-Langevin equations
-        for the internal modes of the system. 
+        for the internal modes of the system. Both h_sys and h_sys_bath must be
+        Hermitian for the Lindbladian to be CPTP, and both must be diagonal in 
+        any FLS-basis, or else no Gaussian presrving superoperator will be
+        constructed.
     dims_cvs : int
     dims_fls : list[list[int]]
     dims_bath : int
@@ -104,12 +104,13 @@ class QGhle(object):
             self._in_bath = inpt.in_bath
 
         # In other cases, specific components of QGoper must be passed as
-        # arguments. The exception is h_sb and decay; since these are dependent 
-        # on one another, only one need be passed for initialization.
+        # arguments. The exceptions are h_sys_bath and decay_rate_mat, where
+        # only one need be provided.
         elif inpt is None:
             # Set dimensions of FLS and CVS components, along with the number
             # of bath degrees of freedom. Currently, these parameters must be 
-            # specified for initialization to proceed.
+            # specified for initialization to proceed, and cannot be inferred
+            # from the data.
             self.dims_fls = dims_fls
             self.dims_cvs = dims_cvs
             self.dims_bath = dims_bath
@@ -147,10 +148,9 @@ class QGhle(object):
         if isinstance(data, QGoper):
             # h_sys must have the dimensions speficied by self.dims_cvs and 
             # self.dims_fls. Since it may be more convenient when creating
-            # creating h_sys to initially tensor the system and bath operators,
-            # h_sys with dimensions self.dims_cvs + self.dims_bath is also
-            # accepted. In this case, a self.h_sys with the desired dimensions
-            # will be created from the input data. 
+            # h_sys to initially tensor the system and bath operators, a h_sys 
+            # with dimensions self.dims_cvs + self.dims_bath is also accepted. 
+            # In this case, the bath modes will be dropped from h_sys.
             if (data.dims_fls == self.dims_fls and 
                 data.dims_cvs == self.dims_cvs
                 ):
@@ -176,17 +176,12 @@ class QGhle(object):
     def h_sys_bath(self, data) -> QGoper:
         if isinstance(data, QGoper):
             # If a QGoper is passed, assume this represents a system-bath Hamiltonian.
-            # Note: These first two checks require calculating cached 
-            # properties, which may be slow if we are repeadedly creating 
-            # instances of QGhle. Find a way around this.
+            # Note: The first check requires calculating cached properties, 
+            # which may be slow if we are repeadedly creating instances of 
+            # QGhle. Find a way around this, or else find out how such
+            # couplings can be incorporated into the construction of the class.
 
-            # First check that QGoper is diagonal in the FLS system, since 
-            # transitions between FLS level cannot be handled.
-            if not data.isgauss:
-                raise ValueError("h_sys_bath cannot contain operators which " \
-                "cause transitions between different levels of the FLS.")
-            
-            # Second, check that only bilinear couplings are present. Couplings
+            # First, check that only bilinear couplings are present. Couplings
             # between pairs of system modes and pairs of bath modes are 
             # currently not checked, and will simply be ignored.
             if data.is1st or data.is0th:
@@ -198,13 +193,13 @@ class QGhle(object):
             # FLS dimensions of data must either agree with those of self, 
             # or else the system-bath Hamiltonian is not coupled to an FLS.
             # In this case, data is tensored with an identity QGoper.
-            if (data.dims_cvs == self.dims_tot and
+            if (self.dims_cvs == data.dims_tot and
                 self.dims_fls == data.dims_fls
-                ):
+               ):
                 self._h_sys_bath = data
-            elif (data.dims_cvs == self.dims_tot and
+            elif (self.dims_cvs == data.dims_tot and
                   self._isfls and not data.isfls
-                  ):
+                 ):
                 self._h_sys_bath = \
                 qgauss.tensor(data,
                               QGoper(data_0th = np.identity(np.prod(self.dims_fls[0])),
@@ -218,7 +213,7 @@ class QGhle(object):
             if (_data.shape[0] == 2*self.dims_cvs and
                 _data.shape[1] == 2*self.dims_bath and
                 _data.ndim == 2
-                ):
+               ):
                 _data_2nd = np.block([[np.zeros((2*self.dims_cvs, 2*self.dims_cvs)),
                                        _data],
                                       [np.transpose(_data),
@@ -233,25 +228,8 @@ class QGhle(object):
                     self._h_sys_bath = \
                     QGoper(data_2nd = _data_2nd,
                            dims_cvs = self.dims_tot)
-            elif (_data.shape[0] == 2*self.dims_cvs and
-                  _data.shape[1] == 2*self.dims_bath and
-                  _data.shape[2] == np.prod(self.dims_fls[0]) and
-                  _data.ndim == 3
-                  ):
-                _data_2nd = np.zeros((np.prod(self.dims_fls[0]),
-                                      np.prod(self.dims_fls[1]),
-                                      2*(self.dims_cvs + self.dims_bath),
-                                      2*(self.dims_cvs + self.dims_bath)))
-                for x in range(0,_data.shape[2]):
-                    _data_2nd[x,x] = \
-                    np.blockck([[np.zeros((2*self.dims_cvs, 2*self.dims_cvs)),
-                                 _data[x]],
-                                [np.transpose(_data[x]),
-                                 np.zeros((2*self.dims_bath, 2*self.dims_bath))]])
-                self._h_sys_bath = QGoper(data_2nd = _data_2nd,
-                                          dims_cvs = self.dims_tot)
             else:
-                raise ValueError("Dimensions of decay_ratE_mat cannot be " \
+                raise ValueError("Dimensions of decay_rate_mat cannot be " \
                 "brought into agreement with stored dimensions.")
         elif data is None:
             # No argument passed, create an empty QGoper
@@ -263,9 +241,10 @@ class QGhle(object):
         # Set h_sb property immediately.
         if self.isfls == True:
             self._h_sb = \
-            np.array([self._h_sys_bath[x,x].data_2nd[0:2*self.dims_cvs,
-                                                     2*self.dims_cvs:2*self.dims_tot]
-                      for x in range(0,np.prod(self.dims_fls[0]))])
+            np.asarray([[self._h_sys_bath[x,y].data_2nd[0:2*self.dims_cvs,
+                                                        2*self.dims_cvs:2*self.dims_tot]
+                         for x in range(0,np.prod(self.dims_fls[0]))]
+                         for y in range(0,np.prod(self.dims_fls[1]))])
         else:
             self._h_sb = \
             self._h_sys_bath.data_2nd[0:2*self.dims_cvs,
@@ -282,7 +261,7 @@ class QGhle(object):
     def in_bath(self, data):
         # Initialize QGstate which represents the input state of the bath.
         if isinstance(data, QGstate):
-            # i_bath must have the dimensions speficied by self.dims_bath.
+            # in_bath must have the dimensions speficied by self.dims_bath.
             if data.isfls is True:
                 raise ValueError("Bath in-field state can only have a CVS component.")
             elif data.dims_cvs == self.dims_bath:
@@ -290,7 +269,7 @@ class QGhle(object):
             else:
                 raise ValueError("Dimensions of bath in-field state do not agree with stored dimensions.")
         elif data is None:
-            # No argument passed for bath in-field state, create a vacuum QGstate.
+            # No argument passed for in_bath, create a vacuum QGstate.
             self._in_bath = QGstate(data_2nd = (1/2)*np.identity(2*self.dims_bath), 
                                     dims_cvs = self.dims_bath)
         else:
@@ -345,6 +324,14 @@ class QGhle(object):
             self._isfls = True
 
     @cached_property
+    def isherm(self) -> bool:
+        return (self.h_sys.isherm and self.h_sys_bath.isherm)
+    
+    @cached_property
+    def isgauss(self) -> bool:
+        return (self.h_sys.isgauss and self.h_sys_bath.isgauss)
+
+    @cached_property
     def symform_sys(self) -> npt.NDArray:
         # Generates the symplectic form for the system.
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
@@ -358,6 +345,11 @@ class QGhle(object):
     def lme(self) -> QGsuper:
         # Lindblad master equation in the form of a QGsuper, equivalent to
         # the Heisenberg-Langevin equations and in-field bath correlations.
+        if not (self.isherm and self.isgauss):
+            raise AttributeError("No CPTP and Gaussian-state preserving " \
+            "Lindblad master equation can be associated with this set of " \
+            "Heisenberg-Langevin equations.")
+        
         _l_sys = qgauss.coherent(self.h_sys)
         if self.isfls:
             _h_temp = np.zeros((np.prod(self.dims_fls[0]),
@@ -365,22 +357,22 @@ class QGhle(object):
                                 2*self.dims_cvs),
                                 dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
-                _h_temp[x] = self.symform_sys @ self.h_sb[x] @ self.in_bath.data_1st
+                _h_temp[x] = self.symform_sys @ self.h_sb[x,x] @ self.in_bath.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs,
                             dims_fls = self.dims_fls)
 
-            _diss = np.einsum("jkl,lm,jmn->jkn",
+            _diss = np.einsum("jklm,mn,jknp->jklp",
                               self.h_sb,
                               self.in_bath.data_2nd + (1j/2)*self.symform_bath,
-                              np.transpose(self.h_sb, [0,2,1]))
+                              np.transpose(self.h_sb, [0,1,3,2]))
             
             _c_mat = np.empty([np.prod(self.dims_fls[0]),
                                2*self.dims_cvs,
                                2*self.dims_cvs], 
                                dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
-                _rate,_jump = np.linalg.eigh(_diss[x])
+                _rate,_jump = np.linalg.eigh(_diss[x,x])
                 _c_mat[x] = np.diag(np.sqrt(_rate)) @ np.conj(np.transpose(_jump))
 
             _c_ops = [None for x in range(0,2*self.dims_cvs)]
@@ -411,11 +403,8 @@ class QGhle(object):
                       for x in range(0,len(_rate))]
 
         # Combine the coherent term from the effective drive Hamiltonian which
-        # is generated from the infield bath state means with the dissipation 
-        # generated from the infield bath state covariances.
-        for x in _c_ops:
-            x.tidyup(1e-7)                      
-            print(x.data_1st)
+        # has been generated from the in-field bath state means with the
+        # dissipation generated from the in-field bath state covariances.
         _l_sys_bath = (qgauss.coherent(_h_drv)
                        + sum([qgauss.dissipator(x) for x in _c_ops]))
             
@@ -432,29 +421,33 @@ class QGhle(object):
     def scattering_mat(self, 
                        freq: float = 0, 
                        index: int = None
-                       ) -> npt.NDArray:
+                      ) -> npt.NDArray:
+        if not self.isgauss:
+            raise AttributeError("System is not Gaussian-state preserving " \
+            "and so no scattering matrix can be constructed.")
+        
         if self.isfls:
             if index is None:
                 _A = [(self.symform_sys @ self.h_sys[index,index].data_2nd
-                      + (1/2)*(self.symform_sys @ self.h_sb[index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index])))
+                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
+                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
                       for x in range(0,np.prod(self.dims_fls[0]))]
                 return [(- self.symform_bath
-                         @ np.transpose(self.h_sb[x])
+                         @ np.transpose(self.h_sb[x,x])
                          @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs))
                          @ self.symform_sys
-                         @ self.h_sb[x]
+                         @ self.h_sb[x,x]
                          + np.identity(2*self.dims_bath))
                         for x in range(0,np.prod(self.dims_fls[0]))]
             else:
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
-                      + (1/2)*(self.symform_sys @ self.h_sb[index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index])))
+                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
+                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
                 return (- self.symform_bath
-                        @ np.transpose(self.h_sb[index])
+                        @ np.transpose(self.h_sb[index,index])
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs))
                         @ self.symform_sys
-                        @ self.h_sb[index]
+                        @ self.h_sb[index,index]
                         + np.identity(2*self.dims_bath))
         else:
             _A = (self.symform_sys @ self.h_sys.data_2nd
@@ -470,23 +463,27 @@ class QGhle(object):
     def transfer_mat(self, 
                      freq: float = 0,
                      index: int = None
-                     ) -> npt.NDArray:
+                    ) -> npt.NDArray:
+        if not self.isgauss:
+            raise AttributeError("System is not Gaussian-state preserving " \
+            "and so no transfer matrix can be constructed.")
+
         if self.isfls:
             if index is None:
                 _A = [(self.symform_sys @ self.h_sys.data_2nd[x,x]
-                      + (1/2)*(self.symform_sys @ self.h_sb[x]
-                               @ self.symform_bath @ np.transpose(self.h_sb[x])))
+                      + (1/2)*(self.symform_sys @ self.h_sb[x,x]
+                               @ self.symform_bath @ np.transpose(self.h_sb[x,x])))
                       for x in range(0,np.prod(self.dims_fls[0]))]
                 return [(- self.symform_bath
-                        @ np.transpose(self.h_sb[x])
+                        @ np.transpose(self.h_sb[x,x])
                         @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs)))
                         for x in range(0,np.prod(self.dims_fls[0]))]
             else:
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
-                      + (1/2)*(self.symform_sys @ self.h_sb[index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index])))
+                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
+                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
                 return (- self.symform_bath
-                        @ np.transpose(self.h_sb[index])
+                        @ np.transpose(self.h_sb[index,index])
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
         else:
             _A = (self.symform_sys @ self.h_sys.data_2nd
@@ -499,7 +496,11 @@ class QGhle(object):
     def out_bath(self, 
                  freq: float = 0,
                  index: int = None
-                 ) -> QGstate:
+                ) -> QGstate:
+        if not self.isgauss:
+            raise AttributeError("System is not Gaussian-state preserving " \
+            "and so no bath out-field state can be constructed.")
+
         if self.isfls:
             if index is None:         
                 _out_mean = np.zeros((np.prod(self.dims_fls[0]),
