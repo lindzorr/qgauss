@@ -84,12 +84,12 @@ def measurement_rate(HLE: QGhle,
         _q_B = np.prod(HLE.dims_fls[1]) - int(_qbinary.split(',')[1],2) - 1
 
         # Generate the output states of the system
-        pointer_A = HLE.out_bath(freq = freq, index = _q_A)
-        pointer_B = HLE.out_bath(freq = freq, index = _q_B)
+        _pointer_A = HLE.output_bath(freq = freq, index = _q_A)
+        _pointer_B = HLE.output_bath(freq = freq, index = _q_B)
 
         (meas_rate, meas_signal, meas_noise) = \
-            _measurement_rate_solver(pointer_A = pointer_A, 
-                                     pointer_B = pointer_B, 
+            _measurement_rate_solver(pointer_A = _pointer_A, 
+                                     pointer_B = _pointer_B, 
                                      meas_oper = meas_oper, 
                                      meas_mode = meas_mode, 
                                      noise_rest = noise_rest)
@@ -97,21 +97,21 @@ def measurement_rate(HLE: QGhle,
     # ----------------------------------------------------------------------
     # No qubit pointer states is specified, solve for all measurment rates
     elif HLE.isfls and pointers is None:
-        row_total = np.prod(HLE.dims_fls[0])
-        col_total = np.prod(HLE.dims_fls[1])
+        _row_total = np.prod(HLE.dims_fls[0])
+        _col_total = np.prod(HLE.dims_fls[1])
 
-        meas_signal = np.empty([row_total,col_total])
-        meas_noise = np.empty([row_total,col_total])
-        meas_rate = np.empty([row_total,col_total])
+        meas_signal = np.empty([_row_total,_col_total])
+        meas_noise = np.empty([_row_total,_col_total])
+        meas_rate = np.empty([_row_total,_col_total])
 
-        for _q_A in range(0,row_total):
-            for _q_B in range(0,col_total):
-                pointer_A = HLE.out_bath(freq = freq, index = _q_A)
-                pointer_B = HLE.out_bath(freq = freq, index = _q_A)
+        for _q_A in range(0,_row_total):
+            for _q_B in range(0,_col_total):
+                _pointer_A = HLE.output_bath(freq = freq, index = _q_A)
+                _pointer_B = HLE.output_bath(freq = freq, index = _q_B)
 
                 (meas_rate[_q_A,_q_B], meas_signal[_q_A,_q_B], meas_noise[_q_A,_q_B]) = \
-                    _measurement_rate_solver(pointer_A = pointer_A,
-                                             pointer_B = pointer_B, 
+                    _measurement_rate_solver(pointer_A = _pointer_A,
+                                             pointer_B = _pointer_B, 
                                              meas_oper = meas_oper, 
                                              meas_mode = meas_mode, 
                                              noise_rest = noise_rest)
@@ -171,6 +171,8 @@ def _measurement_rate_solver(pointer_A: QGstate,
             _meas_oper = _optimum_measurement_operator(pointer_A = pointer_A,
                                                        pointer_B = pointer_B,
                                                        meas_mode = meas_mode)
+        else:
+            _meas_oper = meas_oper
         
         _signal_A = pointer_A.data_1st @ _meas_oper.data_1st
         _signal_B = pointer_B.data_1st @ _meas_oper.data_1st

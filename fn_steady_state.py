@@ -40,7 +40,6 @@ def moment_steadystate(L0: QGsuper,
         ∂W(r;t)/∂t = (-G - (∂/∂r).F - r.D 
                        + ½*(∂/∂r).C.(∂/∂r) - ½*r.B.r - (∂/∂r).A.r) W(r;t)
     """
-    _dims = L0.dims_cvs
     _A = L0.wigner_2nd_deriv_var
     _B = L0.wigner_2nd_var
     _C = L0.wigner_2nd_deriv
@@ -64,9 +63,9 @@ def moment_steadystate(L0: QGsuper,
         covariance matrix.
         """
         # Solve covariance matrix
-        cov = la.solve_continuous_lyapunov(_A,-_C)
+        _cov = la.solve_continuous_lyapunov(_A,-_C)
         # Solve means
-        mean = la.solve(_A,-_F)
+        _mean = la.solve(_A,-_F)
 
     else:
         """
@@ -85,20 +84,20 @@ def moment_steadystate(L0: QGsuper,
 
         # Vector of stable eigenvalues               
         _stbl = np.where(np.real(_evals) < 0)[0]          
-        if len(_stbl) != 2*_dims:
+        if len(_stbl) != 2*L0.dims_cvs:
             # Terminate program if dimensions of stable subspace are too small or large
             sys.exit("No stable solution can be found for the covariance matrix.")
 
         # Array of stable eigenvectors
         _soln = _evecs[:,_stbl]                           
-        _cov = (_soln[2*_dims:4*_dims,0:2*_dims] 
-                @ np.linalg.inv(_soln[0:2*_dims,0:2*_dims]))
+        _cov = (_soln[2*L0.dims_cvs:4*L0.dims_cvs,0:2*L0.dims_cvs] 
+                @ np.linalg.inv(_soln[0:2*L0.dims_cvs,0:2*L0.dims_cvs]))
         # Solve means
         _mean = la.solve(_A - _cov @ _B,-_F + _cov @ _D)
 
     rhof = QGstate(data_2nd = _cov,
                    data_1st = _mean,
-                   dims_cvs = _dims)
+                   dims_cvs = L0.dims_cvs)
     return rhof
 
 

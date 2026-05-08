@@ -61,8 +61,8 @@ class QGhle(object):
         System-bath Hamiltonian, representing coupling between the system and a
         Markovian bath. The Hamiltonian coupling is therefore independent of the
         frequency of the bath modes.
-    in_bath : QGstate
-        In-field state of the input bath operators, representing the 
+    input_bath : QGstate
+        Input-field state of the input bath operators, representing the 
         correlations of the Markovian noise from the bath. Delta-correlations
         part of the covariances are ignored.
     dims_cvs : int
@@ -72,11 +72,11 @@ class QGhle(object):
     dims_bath : int
         Number of continuous variable environments, each of which is comprised
         of an infinite number of bosonic modes.
-    decay_rate_mat : array_like
+    input_coupling_mat : array_like
         Alternative to h_sys_bath. Represents the coupling to the input-fields
         in the Heisenberg-Langevin equations:
             dr/dt = A.r - sqrt(k).r_in
-        The argument decay_rate_mat corresponds to the array sqrt(k), from which
+        The argument input_coupling_mat corresponds to the array sqrt(k), from which
         h_sys_bath is then constructed. Cannot be used for systems where 
         dissipation is dependent on the FLS system, 
             
@@ -87,7 +87,7 @@ class QGhle(object):
     h_sys_bath : QGoper
     h_sb : array
 
-    in_bath : QGstate
+    input_bath : QGstate
         In-field state of the input bath operators, representing the 
         correlations of the Markovian noise from the bath.
     lme : QGsuper
@@ -119,9 +119,9 @@ class QGhle(object):
         if in_bath corresponds to a true quantum-state.
 
     ---- Methods ----
-    scattering_mat : (QGhle, float, str) -> array
-    transfer_mat : (QGhle, float, str) -> array
-    out_bath : (QGhle, float, str) -> QGstate
+    scattering_matrix : (QGhle, float, str) -> array
+    transfer_matrix : (QGhle, float, str) -> array
+    output_bath : (QGhle, float, str) -> QGstate
     eq : (QGhle, QGhle) -> bool
         Check equality of two QGhles.
     
@@ -132,11 +132,11 @@ class QGhle(object):
                  inpt: QGhle = None,
                  h_sys: QGoper = None,
                  h_sys_bath: QGoper = None,
-                 in_bath: QGstate = None,
+                 input_bath: QGstate = None,
                  dims_cvs: int = None,
                  dims_fls: list[list[int]] = None,
                  dims_bath: int = None,
-                 decay_rate_mat: npt.ArrayLike = None
+                 input_coupling_mat: npt.ArrayLike = None
                 ):
 
         # QGhle as input, copy data.
@@ -147,10 +147,10 @@ class QGhle(object):
 
             self._h_sys = inpt.h_sys
             self._h_sys_bath = inpt.h_sys_bath
-            self._in_bath = inpt.in_bath
+            self._input_bath = inpt.input_bath
 
         # In other cases, specific components of QGoper must be passed as
-        # arguments. The exceptions are h_sys_bath and decay_rate_mat, where
+        # arguments. The exceptions are h_sys_bath and input_coupling_mat, where
         # only one need be provided.
         elif inpt is None:
             # Set dimensions of FLS and CVS components, along with the number
@@ -173,15 +173,15 @@ class QGhle(object):
 
             # Set data structures from inputs
             self.h_sys = h_sys
-            self.in_bath = in_bath
+            self.input_bath = input_bath
 
-            # decay_rate_mat is a convenience argument to pass as an alternative
+            # input_coupling_mat is a convenience argument to pass as an alternative
             # to constructing the system-bath Hamiltonian h_sys_bath explicitly,
             # and will only be used if no argument for h_sys_bath is passed.
             if h_sys_bath is not None:
                 self.h_sys_bath = h_sys_bath
             else:
-                self.h_sys_bath = decay_rate_mat
+                self.h_sys_bath = input_coupling_mat
 
             if qgauss.settings.auto_tidyup == True: 
                 self.tidyup()
@@ -285,7 +285,7 @@ class QGhle(object):
                     QGoper(data_2nd = _data_2nd,
                            dims_cvs = self.dims_tot)
             else:
-                raise ValueError("Dimensions of decay_rate_mat cannot be " \
+                raise ValueError("Dimensions of input_coupling_mat cannot be " \
                 "brought into agreement with stored dimensions.")
         elif data is None:
             # No argument passed, create an empty QGoper
@@ -311,23 +311,23 @@ class QGhle(object):
         return self._h_sb
                    
     @property
-    def in_bath(self) -> QGstate:
-        return self._in_bath
-    @in_bath.setter
-    def in_bath(self, data):
+    def input_bath(self) -> QGstate:
+        return self._input_bath
+    @input_bath.setter
+    def input_bath(self, data):
         # Initialize QGstate which represents the input state of the bath.
         if isinstance(data, QGstate):
-            # in_bath must have the dimensions speficied by self.dims_bath.
+            # input_bath must have the dimensions speficied by self.dims_bath.
             if data.isfls is True:
                 raise ValueError("Bath in-field state can only have a CVS component.")
             elif data.dims_cvs == self.dims_bath:
-                self._in_bath = data
+                self._input_bath = data
             else:
                 raise ValueError("Dimensions of bath in-field state do not agree with stored dimensions.")
         elif data is None:
-            # No argument passed for in_bath, create a vacuum QGstate.
-            self._in_bath = QGstate(data_2nd = (1/2)*np.identity(2*self.dims_bath), 
-                                    dims_cvs = self.dims_bath)
+            # No argument passed for input_bath, create a vacuum QGstate.
+            self._input_bath = QGstate(data_2nd = (1/2)*np.identity(2*self.dims_bath), 
+                                       dims_cvs = self.dims_bath)
         else:
             raise TypeError("Bath in-field state is not of a supported type: QGstate.")
 
@@ -401,7 +401,7 @@ class QGhle(object):
     def lme(self) -> QGsuper:
         # Lindblad master equation in the form of a QGsuper, equivalent to
         # the Heisenberg-Langevin equations and in-field bath correlations.
-        if not (self.isherm and self.isgauss and self.in_bath.isquantumstate):
+        if not (self.isherm and self.isgauss and self.input_bath.isquantumstate):
             raise AttributeError("No CPTP and Gaussian-state preserving " \
             "Lindblad master equation can be associated with this set of " \
             "Heisenberg-Langevin equations.")
@@ -413,14 +413,14 @@ class QGhle(object):
                                 2*self.dims_cvs),
                                 dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
-                _h_temp[x] = self.symform_sys @ self.h_sb[x,x] @ self.in_bath.data_1st
+                _h_temp[x] = self.symform_sys @ self.h_sb[x,x] @ self.input_bath.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs,
                             dims_fls = self.dims_fls)
 
             _diss = np.einsum("jklm,mn,jknp->jklp",
                               self.h_sb,
-                              self.in_bath.data_2nd + (1j/2)*self.symform_bath,
+                              self.input_bath.data_2nd + (1j/2)*self.symform_bath,
                               np.transpose(self.h_sb, [0,1,3,2]))
             
             _c_mat = np.empty([np.prod(self.dims_fls[0]),
@@ -444,12 +444,12 @@ class QGhle(object):
                                    dims_fls = self.dims_fls)
 
         else:
-            _h_temp = self.symform_sys @ self.h_sb @ self.in_bath.data_1st
+            _h_temp = self.symform_sys @ self.h_sb @ self.input_bath.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs)
 
             _diss = (self.h_sb
-                     @ (self.in_bath.data_2nd + (1j/2)*self.symform_bath)
+                     @ (self.input_bath.data_2nd + (1j/2)*self.symform_bath)
                      @ np.transpose(self.h_sb))
             _rate,_jump = np.linalg.eigh(_diss)
             _jump = np.conj(np.transpose(_jump))
@@ -474,10 +474,10 @@ class QGhle(object):
 
     ### Assorted Methods ###  
     
-    def scattering_mat(self, 
-                       freq: float = 0, 
-                       index: int = None
-                      ) -> npt.NDArray:
+    def scattering_matrix(self,
+                          freq: float = 0,
+                          index: int = None
+                         ) -> npt.NDArray:
         if not self.isgauss:
             raise AttributeError("System is not Gaussian-state preserving " \
             "and so no scattering matrix can be constructed.")
@@ -516,10 +516,10 @@ class QGhle(object):
                     @ self.h_sb 
                     + np.identity(2*self.dims_bath))
         
-    def transfer_mat(self, 
-                     freq: float = 0,
-                     index: int = None
-                    ) -> npt.NDArray:
+    def transfer_matrix(self,
+                        freq: float = 0,
+                        index: int = None
+                       ) -> npt.NDArray:
         if not self.isgauss:
             raise AttributeError("System is not Gaussian-state preserving " \
             "and so no transfer matrix can be constructed.")
@@ -549,10 +549,10 @@ class QGhle(object):
                     @ np.transpose(self.h_sb)
                     @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
 
-    def out_bath(self, 
-                 freq: float = 0,
-                 index: int = None
-                ) -> QGstate:
+    def output_bath(self, 
+                    freq: float = 0,
+                    index: int = None
+                   ) -> QGstate:
         if not self.isgauss:
             raise AttributeError("System is not Gaussian-state preserving " \
             "and so no bath out-field state can be constructed.")
@@ -573,11 +573,11 @@ class QGhle(object):
                     _tmat = self.transfer_mat(freq, x)
 
                     _out_mean[x,x] = \
-                    (_smat @ self.in_bath.data_1st
+                    (_smat @ self.input_bath.data_1st
                      + _tmat @ self.symform_sys @ self.h_sys.data_1st[x,x])
                     _out_cov[x,x] = \
-                    (1/2)*(_smat @ self.in_bath.data_2nd[x,x] @ np.transpose(_smat_neg)
-                           + _smat_neg @ self.in_bath.data_2nd[x,x] @ np.transpose(_smat))
+                    (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
+                           + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
                 
                 return QGstate(data_2nd = _out_cov,
                                data_1st = _out_mean,
@@ -586,14 +586,14 @@ class QGhle(object):
             else:
                 _smat = self.scattering_matrix(freq, index)
                 _smat_neg = self.scattering_matrix(-freq, index)
-                _tmat = self.transfer_mat(freq, index)
+                _tmat = self.transfer_matrix(freq, index)
 
                 _out_mean \
-                = (_smat @ self.in_bath.data_1st
+                = (_smat @ self.input_bath.data_1st
                    + _tmat @ self.symform_sys @ self.h_sys.data_1st[index,index])
                 _out_cov = \
-                (1/2)*(_smat @ self.in_bath.data_2nd[index,index] @ np.transpose(_smat_neg)
-                       + _smat_neg @ self.in_bath.data_2nd[index,index] @ np.transpose(_smat))
+                (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
+                       + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
                 
                 return QGstate(data_2nd = _out_cov,
                                data_1st = _out_mean,
@@ -601,12 +601,12 @@ class QGhle(object):
         else:
             _smat = self.scattering_matrix(freq)
             _smat_neg = self.scattering_matrix(-freq)
-            _tmat = self.transfer_mat(freq)
+            _tmat = self.transfer_matrix(freq)
 
-            _out_mean = (_smat @ self.in_bath.data_1st
+            _out_mean = (_smat @ self.input_bath.data_1st
                          + _tmat @ self.symform_sys @ self.h_sys.data_1st)
-            _out_cov = (1/2)*(_smat @ self.in_bath.data_2nd @ np.transpose(_smat_neg)
-                              + _smat_neg @ self.in_bath.data_2nd @ np.transpose(_smat))
+            _out_cov = (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
+                              + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
             
             return QGstate(data_2nd = _out_cov,
                            data_1st = _out_mean,
@@ -619,8 +619,8 @@ class QGhle(object):
             (self.dims_cvs == other.dims_cvs) and
             (self.dims_bath == other.dims_bath) and
             (self.h_sys == other.h_sys) and
-            (self.h_sb == other.h_sb) and
-            (self.in_bath == other.in_bath)
+            (self.h_sys_bath == self.h_sys_bath) and
+            (self.input_bath == other.input_bath)
             ):
                 return True
         else:
@@ -633,4 +633,4 @@ class QGhle(object):
 
         self.h_sys.tidyup()
         self.h_sys_bath.tidyup()
-        self.in_bath.tidyup()
+        self.input_bath.tidyup()

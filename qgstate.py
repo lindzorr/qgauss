@@ -130,7 +130,7 @@ class QGstate(object):
         For the FLS-only state, it is required that the eigenvalues are 
         non-negative real numbers. For a CVS-only state, it is required that the
         eigenvalues of (data_2nd + i*Ω/2) be non-negative real numbers.
-    isquantumstate : bool
+    isdensity : bool
         Checks if a CVS or FLS-only quantum state satisfies the conditions of a
         density operator, and so represents a true quantum state. In both cases, 
         it is required that the state be Hermitian, positive semi-definite, and
@@ -167,9 +167,12 @@ class QGstate(object):
     dag : QGstate -> QGstate
         Adjoint (dagger) of QGstate.
     trace : QGstate -> number
-        Returns trace of the entire density matrix represented by QGstate, which 
-        is encoded in the diagonal elements of data_0th. Raises an error is the 
-        integral of the CVS component does not converge.
+        Returns trace of the entire density operator represented by QGstate, 
+        which is encoded in the diagonal elements of data_0th. Raises an error
+        if the integral of the CVS component does not converge.
+    purity : QGstate -> number
+        Returns the purity of the density operator. Only possible for CVS and
+        FLS only states.
     normalize : self
         Checks if QGstate is normalized, and if not, updates data_0th so that 
         the trace is unity.
@@ -768,7 +771,7 @@ class QGstate(object):
                            data_0th = np.transpose(np.conj(self.data_0th)),
                            dims_cvs = self.dims_cvs)
 
-    def trace(self) -> QGstate:
+    def trace(self) -> complex:
         # Trace of entire density. Checks that FLS component is square and that 
         # all CVS components on the diagonal are integrable.
         if self.isintegrable:
@@ -778,7 +781,21 @@ class QGstate(object):
                 return self.data_0th[0]
         else:
             raise ValueError("The trace of this state does not converge to a finite value.")
-        
+    
+    def purity(self) -> complex:
+        # Density of entire density. For FLS states, checks that the matrix is
+        # square and for CVS it checks that all elements on the diagonal are 
+        # integrable.
+        if self.isfls and self.iscvs:
+            return NotImplemented
+        elif self.isfls:
+            return np.trace(self.data_0th @ self.data_0th)
+        else:
+            if self.isintegrable:
+                return np.pow(self.data_0th[0],2)/np.sqrt(np.linalg.det(2*self.data_2nd))
+            else:
+                raise ValueError("The trace of this state does not converge to a finite value.")
+    
     def normalize(self):
         # Check if QGstate is normalized, and if not, normalize data_0th.
         if self.isintegrable:
