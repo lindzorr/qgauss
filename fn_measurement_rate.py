@@ -6,14 +6,13 @@ from scipy import linalg as la
 
 from .qgstate import QGstate
 from .qgoper import QGoper
+from .qghle import QGhle
 from .fn_utilities import *
 
 __all__ = ['measurement_rate','output_state']
 
 
-def measurement_rate(H_system: QGoper, 
-                     H_system_bath: QGoper, 
-                     input_state: QGstate, 
+def measurement_rate(HLE: QGhle,
                      pointers: str = None, 
                      meas_oper: QGoper = None, 
                      meas_mode: int | list[int] = None, 
@@ -24,46 +23,17 @@ def measurement_rate(H_system: QGoper,
     ---- Procedure ----
     Routine to calculate the steady-state measurement rate of some number of 
     qubits, defined in terms of the SNR as:
-        measurement_rate = lim_t→∞ SNR^2(t)/t.
-    This function follows the theory developed in the following paper to 
-    describe the system-bath coupling and input-ouput theory:
-        Gardiner & Collett, Phys. Rev. A 31, 3761 (1985).
-    For the multimode case, supporting expressions can be found in Appendices A3 
-    and A4 in Miller and Orr et al, arXiv:2603.12312 (2026). To summarize, we 
-    represent the system quadratures as
-        r_sys = (q1,p1,...,qN,pN),
-    while the bath quadratures are implicitly frequency dependent and are 
-    expressed as
-        r_bath = (q1(ω),p1(ω),...,qM(ω),pM(ω)).
-    In representing the system-bath Hamiltonian, the corresponding form, 
-    following Gardiner and Collett, will be
-        (1/√2π)*Integral[ (r_sys,r_bath)^T.H_system_bath.(r_sys,r_bath) dω],
-    where "H_system_bath" is the matrix of coefficients for the bilinear 
-    system-bath Hamiltonian. When constructing this Hamiltonian, omit the 
-    integral and instead construct the QGoper using
-        (r_sys,r_bath)^T.H_system_bath.(r_sys,r_bath)
-    where the bath modes must come after the system modes in the tensor product.
-    The data in the system-bath Hamiltonian will have the form 
-        H_system_bath.data_2nd = [[0,Hsb],[Hsb^T,0]]. 
-    If we represent the input states, ρ_in, as a QGstate, then the corresponding 
-    dissipation component in the Lindbladian will be:
-        Γ = Hsb @ (ρ_in.data_2nd + iΩ_2M/2) @ Hsb^T 
-        where Ω_2M is the 2Mx2M symplectic form.
-    This deomnstrates why this function does not use the QGsuper as its input, 
-    since Hsb is required to formulate the input-ouput theory for the 
-    measurement rate, but knowledge of Γ and ρ_in is insufficient to uniquqly 
-    determine the system-bath coupling Hsb.
+        measurement_rate = lim_t→∞ SNR^2(t)/t
+                         = signal / noise.
+    The measurement "signal" corresponds to the magnitude of the separation
+    between the two pointer states, while "noise" represents the total noise
+    along the measured quadrature plus any noise from other sources.
 
     ---- Parameters ----
-    H_system : QGoper
-        System Hamiltonian. This is a linear operator on the Hilbert space of 
-        the system modes and qubit(s) only.
-    H_system_bath : QGoper
-        System-bath Hamiltonian. This operator acts on the Hilbert space of both 
-        the system and bath modes but not the qubit(s). The system modes must be 
-        first in the tensor product, followed by the bath modes.
-    input_state : QGstate
-        Input state of the bath. Must be specified to use input-output theory.
+    HLE : QGoper
+        QGhle object representing the Heisenberg-Langevin equations, which 
+        encodes the system Hamiltonian, system-bath Hamiltonian, and 
+        input state of the bath.
     pointers : string
         The measurement rate is to be calculated between the pointer states for 
         these two elements of the qubit density matrix. This is to be passed as 
@@ -100,33 +70,23 @@ def measurement_rate(H_system: QGoper,
         Measurement noise along with quadrature defined by the measurement 
         operator, not including noise_rest.
     """
-    # ----------------------------------------------------------------------
-    # System-bath coupling cannot currently handle coupling to any qubits
-    if H_system_bath.isfls:
-        sys.exit("Qubit(s) dissipation cannot currently be handled by this function.")
-    
+    # ----------------------------------------------------------------------   
     # No qubits are present, exit immediately
-    if not H_system.isfls:
+    if not HLE.isfls:
         sys.exit("No qubit(s) coupled to system. Measurement rate cannot be defined.")
 
     # ----------------------------------------------------------------------
     # Qubit pointer states are specified, solve the corresponding 
     # measurement rate.
-    elif H_system.isfls and pointers is not None:
+    elif HLE.isfls and pointers is not None:
         # Select index for the pointer state
         _qbinary = pointers.replace('e', '1').replace('g', '0')
-        _q_A = np.prod(H_system.dims_fls[0]) - int(_qbinary.split(',')[0],2) - 1
-        _q_B = np.prod(H_system.dims_fls[1]) - int(_qbinary.split(',')[1],2) - 1
+        _q_A = np.prod(HLE.dims_fls[0]) - int(_qbinary.split(',')[0],2) - 1
+        _q_B = np.prod(HLE.dims_fls[1]) - int(_qbinary.split(',')[1],2) - 1
 
         # Generate the output states of the system
-        pointer_A = output_state(H_system = H_system[_q_A,_q_A], 
-                                 H_system_bath = H_system_bath, 
-                                 input_state = input_state, 
-                                 freq = freq)
-        pointer_B = output_state(H_system = H_system[_q_B,_q_B], 
-                                 H_system_bath = H_system_bath, 
-                                 input_state = input_state, 
-                                 freq = freq)
+        pointer_A = HLE.out_bath(freq = freq, index = _q_A)
+        pointer_B = HLE.out_bath(freq = freq, index = _q_B)
 
         (meas_rate, meas_signal, meas_noise) = \
             _measurement_rate_solver(pointer_A = pointer_A, 
@@ -137,9 +97,9 @@ def measurement_rate(H_system: QGoper,
         
     # ----------------------------------------------------------------------
     # No qubit pointer states is specified, solve for all measurment rates
-    elif H_system.isfls and pointers is None:
-        row_total = np.prod(H_system.dims_fls[0])
-        col_total = np.prod(H_system.dims_fls[1])
+    elif HLE.isfls and pointers is None:
+        row_total = np.prod(HLE.dims_fls[0])
+        col_total = np.prod(HLE.dims_fls[1])
 
         meas_signal = np.empty([row_total,col_total])
         meas_noise = np.empty([row_total,col_total])
@@ -147,14 +107,8 @@ def measurement_rate(H_system: QGoper,
 
         for _q_A in range(0,row_total):
             for _q_B in range(0,col_total):
-                pointer_A = output_state(H_system = H_system[_q_A,_q_A], 
-                                         H_system_bath = H_system_bath, 
-                                         input_state = input_state, 
-                                         freq = freq)
-                pointer_B = output_state(H_system = H_system[_q_B,_q_B], 
-                                         H_system_bath = H_system_bath, 
-                                         input_state = input_state, 
-                                         freq = freq)
+                pointer_A = HLE.out_bath(freq = freq, index = _q_A)
+                pointer_B = HLE.out_bath(freq = freq, index = _q_A)
 
                 (meas_rate[_q_A,_q_B], meas_signal[_q_A,_q_B], meas_noise[_q_A,_q_B]) = \
                     _measurement_rate_solver(pointer_A = pointer_A,
@@ -213,8 +167,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
 
     else:
         # Check if a measurement operator has been provided, and if not pick the
-        # quadrature operator which maximizes the difference between the 
-        # displacement of both output states.
+        # quadrature which maximizes the difference between both output states.
         if meas_oper is None:
             _meas_oper = _optimum_measurement_operator(pointer_A = pointer_A,
                                                        pointer_B = pointer_B,
@@ -280,67 +233,3 @@ def _optimum_measurement_operator(pointer_A: QGstate,
                            dims_cvs = _dims_bath)
     
     return meas_oper
-
-
-def output_state(H_system: QGoper, 
-                 H_system_bath: QGoper, 
-                 input_state: QGstate, 
-                 freq: float = 0
-                ) -> QGstate:
-    """
-    Routine to calculate the output state of the bath in frequency space. 
-    Follows the quantum input-ouput theory of Gardiner & Collett.
-
-    ---- Parameters ----
-    H_system : QGoper
-        System Hamiltonian. This is a linear operator on the Hilbert space of 
-        the system modes and qubit only.
-    H_system_bath : QGoper
-        System-bath Hamiltonian. This operator acts on the Hilbert space of both 
-        the system and bath modes but not the qubit. The system modes must be 
-        first in the tensor product, followed by the bath modes.
-    input_state : QGstate
-        Input state of the bath. Must be specified to use input-output theory.
-    freq : float
-        Frequency, default is zero.
-
-    ---- Returns ----
-    output : QGstate
-        Output state at specified frequency. Note, displacement may be 
-        complex-valued, and hence this may not correspond to a real state.
-    """
-    # Set dimensions of the system (dims_sys),  and the number of environments (dims_bath)
-    _dims_sys = H_system.dims_cvs
-    _dims_bath = input_state.dims_cvs
-
-    _Hsb = H_system_bath.data_2nd[0:2*_dims_sys, 2*_dims_sys:2*_dims_sys+2*_dims_bath]
-    _symform_sys = symplectic_form(_dims_sys)
-    _symform_bath = symplectic_form(_dims_bath)
-    A = (_symform_sys @ H_system.data_2nd 
-         + (1/2)*_symform_sys @ _Hsb @ _symform_bath @ np.transpose(_Hsb))
-
-    _s_mat_freq = (-_symform_bath
-                   @ np.transpose(_Hsb)
-                   @ np.linalg.inv(A + 1j*freq*np.identity(2*_dims_sys))
-                   @ _symform_sys
-                   @ _Hsb
-                   + np.identity(2*_dims_bath))
-    _s_mat_neg_freq = (-_symform_bath
-                       @ np.transpose(_Hsb)
-                       @ np.linalg.inv(A - 1j*freq*np.identity(2*_dims_sys))
-                       @ _symform_sys
-                       @ _Hsb
-                       + np.identity(2*_dims_bath))
-    _t_mat_freq = (-_symform_bath
-                   @ np.transpose(_Hsb)
-                   @ np.linalg.inv(A + 1j*freq*np.identity(2*_dims_sys)))
-
-    _output_mean = (_s_mat_freq @ input_state.data_1st
-                    + _t_mat_freq @ _symform_sys @ H_system.data_1st)
-    _output_cov = (1/2)*(_s_mat_freq @ input_state.data_2nd @ np.transpose(_s_mat_neg_freq)
-                         + _s_mat_neg_freq @ input_state.data_2nd @ np.transpose(_s_mat_freq))
-    
-    output = QGstate(data_2nd = _output_cov,
-                     data_1st = _output_mean,
-                     dims_cvs = _dims_bath)
-    return output
