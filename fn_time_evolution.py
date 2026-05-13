@@ -3,7 +3,7 @@ from typing import Callable
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy import linalg as la
+from scipy.linalg import expm
 from scipy.integrate import solve_ivp
 
 from .qgstate import QGstate
@@ -58,14 +58,14 @@ def unitary_timeevolve(H: QGoper,
     
     # Construct elements of the unitary transformation
     _A = H.symform @ H.data_2nd
-    _S = la.expm(t*_A)
-    _d = t * exp_integrator_phi_function(t*_A) @ (H.symform @ H.data_1st)
+    _S = expm(t*_A)
+    _d = t * expm_int(t*_A) @ (H.symform @ H.data_1st)
 
     if not rho0.isfls:
-        _out_data_2nd = _S @ rho0.data_2nd @ np.transpose(_S)
+        _out_data_2nd = _S @ rho0.data_2nd @ _S.T
         _out_data_1st = _S @ rho0.data_1st + _d
     else:
-        _out_data_2nd = np.array([[(_S @ rho0[j,k].data_2nd @ np.transpose(_S))
+        _out_data_2nd = np.array([[(_S @ rho0[j,k].data_2nd @ _S.T)
                                    for k in range(rho0.shape_0th[1])]
                                    for j in range(rho0.shape_0th[0])])
         _out_data_1st = np.array([[(_S @ rho0[j,k].data_1st + _d)
@@ -132,18 +132,17 @@ def lindblad_timeevolve(LV: QGsuper,
     _A = LV.wigner_2nd_deriv_var
     _C = LV.wigner_2nd_deriv
     _f = LV.wigner_1st_deriv
-    _S = la.expm(t*_A)
-    _d = t * exp_integrator_phi_function(t*_A) @ _f
-    _V = vec_to_mat(t * exp_integrator_phi_function(t*(la.kron(_A, np.eye(2*LV.dims_cvs)) 
-                                                    + la.kron(np.eye(2*LV.dims_cvs), _A)))
-                                                    @ mat_to_vec(_C), 
-                                                    LV.shape_2nd)
+    _S = expm(t*_A)
+    _d = t * expm_int(t*_A) @ _f
+    _V = vec_to_mat(t * expm_int(t*(np.kron(_A, np.eye(2*LV.dims_cvs)) 
+                                    + np.kron(np.eye(2*LV.dims_cvs), _A)))
+                    @ mat_to_vec(_C))
 
     if not rho0.isfls:
-        _out_data_2nd = _S @ rho0.data_2nd @ np.transpose(_S) + _V
+        _out_data_2nd = _S @ rho0.data_2nd @ _S.T + _V
         _out_data_1st = _S @ rho0.data_1st + _d
     else:
-        _out_data_2nd = np.array([[(_S @ rho0[j,k].data_2nd @ np.transpose(_S) + _V)
+        _out_data_2nd = np.array([[(_S @ rho0[j,k].data_2nd @ _S.T + _V)
                                    for k in range(rho0.shape_0th[1])]
                                    for j in range(rho0.shape_0th[0])])
         _out_data_1st = np.array([[(_S @ rho0[j,k].data_1st + _d)
@@ -252,21 +251,15 @@ def moment_timeevolve(L0: QGsuper = None,
         _F0 = L0.wigner_1st_deriv
         _G0 = L0.wigner_0th
 
-    if Lt == []:
+    if not Lt:
         _At, _Bt, _Ct, _Dt, _Ft, _Gt = [], [], [], [], [], []
     else:
-        _At = [[x[0].wigner_2nd_deriv_var,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_2nd_deriv_var) < _tol)]
-        _Bt = [[x[0].wigner_2nd_var,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_2nd_var) < _tol)]
-        _Ct = [[x[0].wigner_2nd_deriv,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_2nd_deriv) < _tol)]
-        _Dt = [[x[0].wigner_1st_var,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_1st_var) < _tol)]
-        _Ft = [[x[0].wigner_1st_deriv,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_1st_deriv) < _tol)]
-        _Gt = [[x[0].wigner_0th,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_0th) < _tol)]
+        _At = _tdep_super_array(Lt, 'wigner_2nd_deriv_var', _tol)
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_var', _tol)
+        _Ct = _tdep_super_array(Lt, 'wigner_2nd_deriv', _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_var', _tol)
+        _Ft = _tdep_super_array(Lt, 'wigner_1st_deriv', _tol)
+        _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
 
     # Check if dynamics of the covariances and means do not preverse the norm of 
     # the state. Pure dissipation is allowed  in the form of a non-zer Gt. The 
@@ -285,8 +278,8 @@ def moment_timeevolve(L0: QGsuper = None,
             #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T + C
             _A = _A0 + sum([x[0]*x[1](t) for x in _At])
             _C = _C0 + sum([x[0]*x[1](t) for x in _Ct])
-            _V = vec_to_symmat(X, 2*_dims)
-            return symmat_to_vec(_A @ _V + _V @ np.transpose(_A) + _C)
+            _V = vec_to_symmat(X)
+            return symmat_to_vec(_A @ _V + _V @ _A.T + _C)
         
         def _ode_func_mean(t,X):
             # Function for the means to pass to solve_ivp.
@@ -296,14 +289,26 @@ def moment_timeevolve(L0: QGsuper = None,
             return _A @ X + _F
         
         def _ode_func_norm(t,X):
-            # Function for the means to pass to solve_ivp.
+            # Function for the norm to pass to solve_ivp.
             #   dn(t)/dt = d/dt exp(-v(t)) = exp(-v(t))*(-dv(t)/dt) = -n(t)*G
             _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
             return -X*_G
         
-        _Vsol = solve_ivp(_ode_func_cov, (tlist[0],tlist[-1]), _V0, t_eval = tlist, **options)
-        _msol = solve_ivp(_ode_func_mean, (tlist[0],tlist[-1]), _m0, t_eval = tlist, **options)
-        _nsol = solve_ivp(_ode_func_norm, (tlist[0],tlist[-1]), _n0, t_eval = tlist, **options)
+        _Vsol = solve_ivp(fun = _ode_func_cov, 
+                          t_span = (tlist[0],tlist[-1]), 
+                          y0 = _V0, 
+                          t_eval = tlist, 
+                          **options)
+        _msol = solve_ivp(fun = _ode_func_mean, 
+                          t_span = (tlist[0],tlist[-1]), 
+                          y0 = _m0, 
+                          t_eval = tlist, 
+                          **options)
+        _nsol = solve_ivp(fun = _ode_func_norm, 
+                          t_span = (tlist[0],tlist[-1]), 
+                          y0 = _n0, 
+                          t_eval = tlist, 
+                          **options)
 
         _Vt = [_Vsol.y[:,t] for t in range(0,len(tlist))]
         _mt = [_msol.y[:,t] for t in range(0,len(tlist))]
@@ -314,7 +319,7 @@ def moment_timeevolve(L0: QGsuper = None,
         # ODEs for all moments. The differential equations are defined as:
         #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T - Σ(t).B.Σ(t) + C
         #   dμ(t)/dt = (A - B.Σ(t)).μ(t) + F - Σ(t).D
-        #   dn(t)/dt = -n(t)*(g + f.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
+        #   dn(t)/dt = -n(t)*(G + F.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
         def _ode_func_total(t,X):
             _A = _A0 + sum([x[0]*x[1](t) for x in _At])
             _B = _B0 + sum([x[0]*x[1](t) for x in _Bt])
@@ -324,23 +329,28 @@ def moment_timeevolve(L0: QGsuper = None,
             _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
             # Split X into leading covariance matrix elements and trailing 
             # elements for the mean.
-            _XV = vec_to_symmat(X[0:_dims*(2*_dims+1)], 2*_dims)
+            _XV = vec_to_symmat(X[0:_dims*(2*_dims+1)])
             _Xm = X[_dims*(2*_dims+1):_dims*(2*_dims+3)]
             _Xn = X[_dims*(2*_dims+3)]
             # Perform matrix/vector operations, convert symmetric covariance 
             # matrix back to vector, and append the means.
-            return np.concatenate((symmat_to_vec(_A @ _XV + _XV @ np.transpose(_A) - _XV @ _B @ _XV + _C),
-                                   (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
-                                   -_Xn*(_G + _F @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
+            return np.concatenate(
+                (symmat_to_vec(_A @ _XV + _XV @ _A.T - _XV @ _B @ _XV + _C),
+                 (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
+                 -_Xn*(_G + _F @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
 
         _X0 = np.concatenate((_V0, _m0, _n0))
-        _Xsol = solve_ivp(_ode_func_total, (tlist[0],tlist[-1]), _X0, t_eval = tlist, **options)
+        _Xsol = solve_ivp(fun = _ode_func_total, 
+                          t_span = (tlist[0],tlist[-1]), 
+                          y0 = _X0, 
+                          t_eval = tlist, 
+                          **options)
         
         _Vt = [_Xsol.y[0:_dims*(2*_dims+1), t] for t in range(0,len(tlist))]
         _mt = [_Xsol.y[_dims*(2*_dims+1):_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
         _nt = [_Xsol.y[_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
 
-    return [QGstate(data_2nd = vec_to_symmat(_Vt[t], 2*_dims),
+    return [QGstate(data_2nd = vec_to_symmat(_Vt[t]),
                     data_1st = _mt[t],
                     data_0th = _nt[t],
                     dims_cvs = _dims)
@@ -361,8 +371,9 @@ def backaction_timeevolve(L0: QGsuper = None,
     check if the evolution is Gaussian, and will raise an error if not. The 
     component of the qubit state can be specified if the system has an FLS 
     component, and if none is given, the backaction on every component will be 
-    solved. If the system is only CV, no qubit state need be specified. The 
-    function will return the total time-integrated dephasing and frequency 
+    solved. If the system is only CV, no qubit state need be specified. 
+    
+    The function will return the total time-integrated dephasing and frequency 
     shift, along with instanteous values of the total dephasing and frequency 
     shift, along with the bare, measurement-induced, and parasitic dephasing 
     subcomponents. Each component of the backaction is stored in a single list, 
@@ -407,8 +418,8 @@ def backaction_timeevolve(L0: QGsuper = None,
     method : str
         Integration method to be used by Scipy solve_ivp. Due to the data used 
         here, only solvers which can handle complex values will work. The 
-        default is ‘RK45’. Other choices for explicit methods are ‘RK23’ and 
-        ‘DOP853’, while for implicit solvers the choice is ‘BDF’.
+        default is 'RK45'. Other choices for explicit methods are 'RK23' and 
+        'DOP853', while for implicit solvers the choice is 'BDF'.
 
     ---- Returns ----
     ba_norm : list[complex] or list[array[complex]]
@@ -429,6 +440,7 @@ def backaction_timeevolve(L0: QGsuper = None,
         of this components arises when the CVS state has variances above vacuum,
         while the frequency shift is present even for the vacuum shift.
     """
+    # ----------------------------------------------------------------------
     # Set options
     _defaults = {'atol': qgauss.settings.atol, 
                  'rtol': qgauss.settings.rtol, 
@@ -582,15 +594,12 @@ def _backaction_timeevolve_solver(L0: QGsuper,
         _D0 = L0.wigner_1st_var
         _G0 = L0.wigner_0th
 
-    if Lt == []:
+    if not Lt:
         _Bt, _Dt, _Gt = [], [], []
     else:
-        _Bt = [[x[0].wigner_2nd_var,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_2nd_var) < _tol)]
-        _Dt = [[x[0].wigner_1st_var,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_1st_var) < _tol)]
-        _Gt = [[x[0].wigner_0th,x[1]] 
-               for x in Lt if not np.all(np.abs(x[0].wigner_0th) < _tol)]
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_var', _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_var', _tol)
+        _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
 
     ba_norm = np.empty([len(tlist)], dtype=complex)    
     ba_total = np.empty([len(tlist)], dtype=complex)
@@ -612,3 +621,11 @@ def _backaction_timeevolve_solver(L0: QGsuper,
         ba_total[u] = ba_bare[u] + ba_meas_ind[u] + ba_para[u]
 
     return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para
+
+
+def _tdep_super_array(data : list[tuple[QGsuper,Callable[[float], complex]]],
+                      prop : str,
+                      tol : float = qgauss.settings.atol
+                     ) -> list[tuple[npt.NDArray,Callable[[float], complex]]]:
+    return [[getattr(x[0], prop), x[1]]
+            for x in data if not np.all(np.abs(getattr(x[0], prop)) < tol)]

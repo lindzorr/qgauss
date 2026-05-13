@@ -2,7 +2,7 @@ import sys
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy import linalg as la
+from scipy.linalg import eigvals,solve,solve_continuous_lyapunov
 
 from .qgstate import QGstate
 from .qgsuper import QGsuper
@@ -47,7 +47,7 @@ def moment_steadystate(L0: QGsuper,
     _F = L0.wigner_1st_deriv
 
     # Check if system is stable before proceeding
-    if not all(np.real(x) < 0 for x in la.eigvals(_A)):
+    if not all(np.real(x) < 0 for x in eigvals(_A)):
         sys.exit("System has eigenvalues with positive real part and is " \
         "therefore unstable: no steady state solution exists.")
 
@@ -63,9 +63,9 @@ def moment_steadystate(L0: QGsuper,
         covariance matrix.
         """
         # Solve covariance matrix
-        _cov = la.solve_continuous_lyapunov(_A,-_C)
+        _cov = solve_continuous_lyapunov(_A,-_C)
         # Solve means
-        _mean = la.solve(_A,-_F)
+        _mean = solve(_A,-_F)
 
     else:
         """
@@ -79,7 +79,7 @@ def moment_steadystate(L0: QGsuper,
         is solved using the stable-subspace solution method.
         """
         # Solve covariance matrix using the "Hamiltonian" matrix, or H-matrix
-        _H = np.block([[np.transpose(_A), -_B], [-_C, -_A]])
+        _H = np.block([[_A.T, -_B], [-_C, -_A]])
         _evals, _evecs = np.linalg.eig(_H)
 
         # Vector of stable eigenvalues               
@@ -93,7 +93,7 @@ def moment_steadystate(L0: QGsuper,
         _cov = (_soln[2*L0.dims_cvs:4*L0.dims_cvs,0:2*L0.dims_cvs] 
                 @ np.linalg.inv(_soln[0:2*L0.dims_cvs,0:2*L0.dims_cvs]))
         # Solve means
-        _mean = la.solve(_A - _cov @ _B,-_F + _cov @ _D)
+        _mean = solve(_A - _cov @ _B,-_F + _cov @ _D)
 
     rhof = QGstate(data_2nd = _cov,
                    data_1st = _mean,

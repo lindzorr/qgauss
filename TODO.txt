@@ -2,17 +2,9 @@
 ##  Functions  ##
 #################
 # Time-domain functions for the signal-to-noise ratio.
-# Improve the measurement_rate function. Currently, the required input seems a bit hacked together. Perhaps allow
-for the system and system-bath Hamiltonian to be passed as a single argument? Could also structure it so that the
-indices of the bath or system modes must be specified to remove the need to keep a strict ordering.
 # The backaction rates that are returned by the qubit dephasing function could be used to calculate the Hamiltonian
 representing the induced frequency shift on the qubits, along with the effective collapse operators for the reduced
 qubit master equation.
-# Constructing a Lindbladian from the input state and system-bath coupling. Also, see if it is possible at all to
-go from a Lindbladian and input-state to the system-bath coupling for the Heisenberg-Langevin equations, even if
-the solution is not unique.
-# The Heisenberg-Langevin equations should be their own class made of an amalgam of the other three base classes,
-plus some specific other ones like input-output, scattering, convert HLE to Lindblad.
 # Maybe allow for the conversion of Qutip Qobj's into the base Qgauss classes. Also, possibly convert the three base
 classes into Qobj.
 
@@ -31,8 +23,6 @@ iter, setitem, delitem. matmul and rmatmul as shorthand for added operations on 
 # Other methods/attributes to implement:
 copy() Create a copy of QGstate
 ptrace() Traces over selected mode indices listed in array. Only computable for purely FLS states or CVS component of states
-purity() Returns the purity of the state. Only computable for purely FLS or CVS states
-isdensity Attribute, which answers: is the QGstate a true density operator?
 # Features to add to multiplication
     - Multiplication of pure FLS states, equivalent to bare matrix multiplication
     - Multiplication of pure CVSS states, equivalent to Moyal product between Gaussian Wigner distributions

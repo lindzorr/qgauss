@@ -20,7 +20,7 @@ class QGhle(object):
     Write this and add more comments to code.
     
     This function follows the theory developed in the following paper to 
-    describe the system-bath coupling and input-ouput theory:
+    describe the system-environment/bath/reservoir coupling and input-ouput theory:
         Gardiner & Collett, Phys. Rev. A 31, 3761 (1985).
     For the multimode case, supporting expressions can be found in Appendices A3 
     and A4 in Miller and Orr et al, arXiv:2603.12312 (2026).
@@ -57,11 +57,11 @@ class QGhle(object):
         System Hamiltonian, containing interactions between the CVS and FLS 
         parts of the main system. If system operators are found to be tensored 
         with bath operators, the bath modes will be dropped.
-    h_sys_bath : QGoper
+    h_sys_env : QGoper
         System-bath Hamiltonian, representing coupling between the system and a
         Markovian bath. The Hamiltonian coupling is therefore independent of the
         frequency of the bath modes.
-    input_bath : QGstate
+    input_env : QGstate
         Input-field state of the input bath operators, representing the 
         correlations of the Markovian noise from the bath. Delta-correlations
         part of the covariances are ignored.
@@ -69,30 +69,37 @@ class QGhle(object):
         Number of continuous variable system (CVS) modes.
     dims_fls : array_like
         Dimensions of the finite-level component of the system (FLS).
-    dims_bath : int
-        Number of continuous variable environments, each of which is comprised
-        of an infinite number of bosonic modes.
+    dims_env : int
+        Number of continuous variable environments/baths/reservoirs, each of 
+        which is comprised of an infinite number of bosonic modes.
     input_coupling_mat : array_like
-        Alternative to h_sys_bath. Represents the coupling to the input-fields
+        Alternative to h_sys_env. Represents the coupling to the input-fields
         in the Heisenberg-Langevin equations:
             dr/dt = A.r - sqrt(k).r_in
         The argument input_coupling_mat corresponds to the array sqrt(k), from which
-        h_sys_bath is then constructed. Cannot be used for systems where 
+        h_sys_env is then constructed. Cannot be used for systems where 
         dissipation is dependent on the FLS system, 
             
     ---- Attributes ----
     h_sys : QGoper
         System Hamiltonian, containing interactions between the CVS and FLS 
         parts of the main system.
-    h_sys_bath : QGoper
-    h_sb : array
-
-    input_bath : QGstate
+    h_sys_env : QGoper
+        System-environment Hamiltonian, representing the coupling of the system
+        to a Markovian bath/reservoir.
+    h_se : array
+        Internal data representing the non-zero coupling component from
+        h_sys_env. Specifically, when writing h_sys_env in block form, h_se
+        represents the following array:
+            h_sys_env.data_2nd = [[0, h_se], [0, h_se^T]].
+        Since h_se is used in many calculations using the HLEs, it is beneficial
+        to store this array as a class property.
+    input_env : QGstate
         In-field state of the input bath operators, representing the 
         correlations of the Markovian noise from the bath.
     lme : QGsuper
         Lindblad master equation equivalent to the Heisenberg-Langevin equations
-        for the internal modes of the system. Both h_sys and h_sys_bath must be
+        for the internal modes of the system. Both h_sys and h_sys_env must be
         Hermitian for the Lindbladian to be CPTP, and both must be diagonal in 
         any FLS-basis, or else no Gaussian presrving superoperator will be
         constructed.
@@ -100,28 +107,32 @@ class QGhle(object):
         Number of continuous variable system (CVS) modes of the main system.
     dims_fls : list[list[int]]
         Dimensions of the finite-level component of the main system (FLS).
-    dims_bath : int
+    dims_env : int
         Number of continuous variable environments, each of which is comprised
         of an infinite number of bosonic modes.
+    isfls : bool
+    isherm : bool
+    isgauss : bool
+    iscoherent : bool
     symform_sys : array
         Symplectic form acting on either the system CVS modes. The
         generated matrix will have the form:
             Ω = ⊗_{j=1}^dims_cvs [[0,1],[-1,0]]
-    symform_bath : array
+    symform_env : array
         Symplectic form acting on either the bath degrees of freedom. The
         generated matrix will have the form:
-            Ω = ⊗_{j=1}^dims_bath [[0,1],[-1,0]]
+            Ω = ⊗_{j=1}^dims_env [[0,1],[-1,0]]
     lme : QGsuper
         Lindbladian of the main system which is equivalent to the main-system
         dynamics described by the Heisenberg-Langevin equation. Corresponds to
         a CPTP Gaussian-quantum channel, and can only be defined if both h_sys
-        and h_sys_bath are Hermitian Gaussian-state preserving Hamiltonians, and
-        if in_bath corresponds to a true quantum-state.
+        and h_sys_env are Hermitian Gaussian-state preserving Hamiltonians, and
+        if input_env corresponds to a true quantum-state.
 
     ---- Methods ----
     scattering_matrix : (QGhle, float, str) -> array
     transfer_matrix : (QGhle, float, str) -> array
-    output_bath : (QGhle, float, str) -> QGstate
+    output_env : (QGhle, float, str) -> QGstate
     eq : (QGhle, QGhle) -> bool
         Check equality of two QGhles.
     
@@ -131,11 +142,11 @@ class QGhle(object):
     def __init__(self, 
                  inpt: QGhle = None,
                  h_sys: QGoper = None,
-                 h_sys_bath: QGoper = None,
-                 input_bath: QGstate = None,
+                 h_sys_env: QGoper = None,
+                 input_env: QGstate = None,
                  dims_cvs: int = None,
                  dims_fls: list[list[int]] = None,
-                 dims_bath: int = None,
+                 dims_env: int = None,
                  input_coupling_mat: npt.ArrayLike = None
                 ):
 
@@ -143,45 +154,45 @@ class QGhle(object):
         if isinstance(inpt, QGoper):
             self._dims_cvs = inpt.dims_cvs
             self._dims_fls = inpt.dims_fls
-            self._dims_bath = inpt.dims_bath
+            self._dims_env = inpt.dims_env
 
             self._h_sys = inpt.h_sys
-            self._h_sys_bath = inpt.h_sys_bath
-            self._input_bath = inpt.input_bath
+            self._h_sys_env = inpt.h_sys_env
+            self._input_env = inpt.input_env
 
         # In other cases, specific components of QGoper must be passed as
-        # arguments. The exceptions are h_sys_bath and input_coupling_mat, where
+        # arguments. The exceptions are h_sys_env and input_coupling_mat, where
         # only one need be provided.
         elif inpt is None:
             # Set dimensions of FLS and CVS components, along with the number
-            # of bath degrees of freedom. Currently, the dims_cvs and dims_bath
-            # parameters must be specified for initialization to proceed, and 
-            # are not inferred from the data.
+            # of evironmental degrees of freedom. Currently, the dims_cvs and 
+            # dims_env  parameters must be specified for initialization to 
+            # proceed, and are not inferred from the data.
 
             # Set dims_fls by successively checking each argument.
             if dims_fls is not None:
                 self.dims_fls = dims_fls
             elif h_sys is not None:
                 self.dims_fls = h_sys.dims_fls
-            elif h_sys_bath is not None:
-                self.dims_fls = h_sys_bath.dims_fls
+            elif h_sys_env is not None:
+                self.dims_fls = h_sys_env.dims_fls
             else:
                 self.dims_fls = dims_fls
-            # Set dims_cvs and dims_bath
+            # Set dims_cvs and dims_env
             self.dims_cvs = dims_cvs
-            self.dims_bath = dims_bath
+            self.dims_env = dims_env
 
             # Set data structures from inputs
             self.h_sys = h_sys
-            self.input_bath = input_bath
+            self.input_env = input_env
 
             # input_coupling_mat is a convenience argument to pass as an alternative
-            # to constructing the system-bath Hamiltonian h_sys_bath explicitly,
-            # and will only be used if no argument for h_sys_bath is passed.
-            if h_sys_bath is not None:
-                self.h_sys_bath = h_sys_bath
+            # to constructing the system-environment Hamiltonian h_sys_env explicitly,
+            # and will only be used if no argument for h_sys_env is passed.
+            if h_sys_env is not None:
+                self.h_sys_env = h_sys_env
             else:
-                self.h_sys_bath = input_coupling_mat
+                self.h_sys_env = input_coupling_mat
 
             if qgauss.settings.auto_tidyup == True: 
                 self.tidyup()
@@ -204,16 +215,16 @@ class QGhle(object):
         if isinstance(data, QGoper):
             # h_sys must have the dimensions speficied by self.dims_cvs and 
             # self.dims_fls. Since it may be more convenient when creating
-            # h_sys to initially tensor the system and bath operators, a h_sys 
-            # with dimensions self.dims_cvs + self.dims_bath is also accepted. 
-            # In this case, the bath modes will be dropped from h_sys.
+            # h_sys to initially tensor the system and environment operators, 
+            # the dimensions self.dims_cvs + self.dims_env is also accepted. 
+            # In this case, the environment modes will be dropped from h_sys.
             if (data.dims_fls == self.dims_fls and 
                 data.dims_cvs == self.dims_cvs
-                ):
+               ):
                 self._h_sys = data
             elif (data.dims_fls == self.dims_fls and
                   data.dims_cvs == self.dims_tot
-                ):
+                 ):
                 self._h_sys = data.drop(tuple(range(self.dims_cvs + 1, 
                                                     self.dims_tot + 1)))
             else:
@@ -226,62 +237,62 @@ class QGhle(object):
             raise TypeError("Input for h_sys is not of a supported type: QGoper.")
     
     @property
-    def h_sys_bath(self) -> QGoper:
-        return self._h_sys_bath
-    @h_sys_bath.setter
-    def h_sys_bath(self, data) -> QGoper:
+    def h_sys_env(self) -> QGoper:
+        return self._h_sys_env
+    @h_sys_env.setter
+    def h_sys_env(self, data) -> QGoper:
         if isinstance(data, QGoper):
-            # If a QGoper is passed, assume this represents a system-bath Hamiltonian.
+            # If a QGoper is passed, assume this represents a system-environment Hamiltonian.
             # Note: The first check requires calculating cached properties, 
             # which may be slow if we are repeadedly creating instances of 
             # QGhle. Find a way around this, or else find out how such
             # couplings can be incorporated into the construction of the class.
 
             # First, check that only bilinear couplings are present. Couplings
-            # between pairs of system modes and pairs of bath modes are 
+            # between pairs of system modes and pairs of environment modes are 
             # currently not checked, and will simply be ignored.
             if data.is1st or data.is0th:
-                raise ValueError("h_sys_bath can only contain couplings " \
-                "between system and bath operators.")
+                raise ValueError("h_sys_env can only contain couplings " \
+                "between system and environment operators.")
             
             # Next, check that the dimensions of data agree with combined
-            # system-CVS and bath dimensions of self.
+            # system-CVS and environment dimensions of self.
             # FLS dimensions of data must either agree with those of self, 
-            # or else the system-bath Hamiltonian is not coupled to an FLS.
-            # In this case, data is tensored with an identity QGoper.
+            # or else the system-environment Hamiltonian is not coupled to an
+            # FLS. In this case, data is tensored with an identity QGoper.
             if (data.dims_fls == self.dims_fls and
                 data.dims_cvs == self.dims_tot
                ):
-                self._h_sys_bath = data
+                self._h_sys_env = data
             elif (data.dims_cvs == self.dims_tot and
                   self._isfls and not data.isfls
                  ):
-                self._h_sys_bath = \
+                self._h_sys_env = \
                 qgauss.tensor(data,
                               QGoper(data_0th = np.identity(np.prod(self.dims_fls[0])),
                                      dims_fls = self.dims_fls))
             else:
-                raise ValueError("Dimensions of h_sys_bath do not agree with stored dimensions.")     
+                raise ValueError("Dimensions of h_sys_env do not agree with stored dimensions.")     
         elif isinstance(data, (np.ndarray, list)):
             # If an array-like structure is passed, assume this represents the
             # decay-rate coupling matrix between the system and input-fields
             _data = self.symform_sys @ np.asarray(data)
             if (_data.shape[0] == 2*self.dims_cvs and
-                _data.shape[1] == 2*self.dims_bath and
+                _data.shape[1] == 2*self.dims_env and
                 _data.ndim == 2
                ):
                 _data_2nd = np.block([[np.zeros((2*self.dims_cvs, 2*self.dims_cvs)),
                                        _data],
-                                      [np.transpose(_data),
-                                       np.zeros((2*self.dims_bath, 2*self.dims_bath))]])
+                                      [_data.T,
+                                       np.zeros((2*self.dims_env, 2*self.dims_env))]])
                 if self.isfls:
-                    self._h_sys_bath = \
+                    self._h_sys_env = \
                     qgauss.tensor(QGoper(data_2nd = _data_2nd,
                                          dims_cvs = self.dims_tot),
                                   QGoper(data_0th = np.identity(np.prod(self.dims_fls[0])),
                                          dims_fls = self.dims_fls))
                 else:
-                    self._h_sys_bath = \
+                    self._h_sys_env = \
                     QGoper(data_2nd = _data_2nd,
                            dims_cvs = self.dims_tot)
             else:
@@ -289,47 +300,47 @@ class QGhle(object):
                 "brought into agreement with stored dimensions.")
         elif data is None:
             # No argument passed, create an empty QGoper
-            self._h_sys_bath = QGoper(dims_fls = self.dims_fls,
-                                      dims_cvs = self.dims_tot)
+            self._h_sys_env = QGoper(dims_fls = self.dims_fls,
+                                     dims_cvs = self.dims_tot)
         else:
            raise TypeError("Input is not of a supported type: QGoper or array-like.")
         
-        # Set h_sb property immediately.
+        # Set h_se property immediately.
         if self.isfls == True:
-            self._h_sb = \
-            np.asarray([[self._h_sys_bath[x,y].data_2nd[0:2*self.dims_cvs,
+            self._h_se = \
+            np.asarray([[self._h_sys_env[x,y].data_2nd[0:2*self.dims_cvs,
                                                         2*self.dims_cvs:2*self.dims_tot]
                          for x in range(0,np.prod(self.dims_fls[0]))]
                          for y in range(0,np.prod(self.dims_fls[1]))])
         else:
-            self._h_sb = \
-            self._h_sys_bath.data_2nd[0:2*self.dims_cvs,
-                                      2*self.dims_cvs:2*self.dims_tot]
+            self._h_se = \
+            self._h_sys_env.data_2nd[0:2*self.dims_cvs,
+                                     2*self.dims_cvs:2*self.dims_tot]
              
     @property
-    def h_sb(self) -> npt.NDArray:
-        return self._h_sb
+    def h_se(self) -> npt.NDArray:
+        return self._h_se
                    
     @property
-    def input_bath(self) -> QGstate:
-        return self._input_bath
-    @input_bath.setter
-    def input_bath(self, data):
-        # Initialize QGstate which represents the input state of the bath.
+    def input_env(self) -> QGstate:
+        return self._input_env
+    @input_env.setter
+    def input_env(self, data):
+        # Initialize QGstate which represents the input state of the environment.
         if isinstance(data, QGstate):
-            # input_bath must have the dimensions speficied by self.dims_bath.
+            # input_env must have the dimensions speficied by self.dims_env.
             if data.isfls is True:
-                raise ValueError("Bath in-field state can only have a CVS component.")
-            elif data.dims_cvs == self.dims_bath:
-                self._input_bath = data
+                raise ValueError("Input-field state can only have a CVS component.")
+            elif data.dims_cvs == self.dims_env:
+                self._input_env = data
             else:
-                raise ValueError("Dimensions of bath in-field state do not agree with stored dimensions.")
+                raise ValueError("Dimensions of input-field state do not agree with stored dimensions.")
         elif data is None:
-            # No argument passed for input_bath, create a vacuum QGstate.
-            self._input_bath = QGstate(data_2nd = (1/2)*np.identity(2*self.dims_bath), 
-                                       dims_cvs = self.dims_bath)
+            # No argument passed for input_env, create a vacuum QGstate.
+            self._input_env = QGstate(data_2nd = (1/2)*np.identity(2*self.dims_env), 
+                                      dims_cvs = self.dims_env)
         else:
-            raise TypeError("Bath in-field state is not of a supported type: QGstate.")
+            raise TypeError("Input-field state is not of a supported type: QGstate.")
 
     @property
     def dims_cvs(self) -> int:
@@ -342,18 +353,18 @@ class QGhle(object):
             raise TypeError("dims_cvs is not of a supported type: number.")
 
     @property
-    def dims_bath(self) -> int:
-        return self._dims_bath
-    @dims_bath.setter
-    def dims_bath(self, dims):
+    def dims_env(self) -> int:
+        return self._dims_env
+    @dims_env.setter
+    def dims_env(self, dims):
         if isinstance(dims, numbers.Integral):
-            self._dims_bath = int(dims)
+            self._dims_env = int(dims)
         else:
-            raise TypeError("dims_bath is not of a supported type: number.")
+            raise TypeError("dims_env is not of a supported type: number.")
     
     @property
     def dims_tot(self) -> int:
-        return self.dims_bath + self.dims_cvs
+        return self.dims_env + self.dims_cvs
     
     @property
     def dims_fls(self) -> list[list[int]]:
@@ -378,30 +389,35 @@ class QGhle(object):
             self._isfls = False
         else:
             self._isfls = True
-
+    
     @cached_property
     def isherm(self) -> bool:
-        return (self.h_sys.isherm and self.h_sys_bath.isherm)
+        return (self.h_sys.isherm and self.h_sys_env.isherm)
     
     @cached_property
     def isgauss(self) -> bool:
-        return (self.h_sys.isgauss and self.h_sys_bath.isgauss)
+        return (self.h_sys.isgauss and self.h_sys_env.isgauss)
 
+    @cached_property
+    def iscoherent(self) -> bool:
+        return (self.h_sys.isherm and 
+                np.all(np.abs(self.h_se) < qgauss.settings.atol))
+    
     @cached_property
     def symform_sys(self) -> npt.NDArray:
         # Generates the symplectic form for the system.
         return np.kron(np.identity(self.dims_cvs), np.array([[0,1],[-1,0]]))
     
     @cached_property
-    def symform_bath(self) -> npt.NDArray:
-        # Generates the symplectic form for the bath.
-        return np.kron(np.identity(self.dims_bath), np.array([[0,1],[-1,0]]))
-
+    def symform_env(self) -> npt.NDArray:
+        # Generates the symplectic form for the environment.
+        return np.kron(np.identity(self.dims_env), np.array([[0,1],[-1,0]]))
+    
     @cached_property
     def lme(self) -> QGsuper:
         # Lindblad master equation in the form of a QGsuper, equivalent to
-        # the Heisenberg-Langevin equations and in-field bath correlations.
-        if not (self.isherm and self.isgauss and self.input_bath.isquantumstate):
+        # the Heisenberg-Langevin equations and input-field correlations.
+        if not (self.isherm and self.isgauss and self.input_env.isdensity):
             raise AttributeError("No CPTP and Gaussian-state preserving " \
             "Lindblad master equation can be associated with this set of " \
             "Heisenberg-Langevin equations.")
@@ -413,15 +429,15 @@ class QGhle(object):
                                 2*self.dims_cvs),
                                 dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
-                _h_temp[x] = self.symform_sys @ self.h_sb[x,x] @ self.input_bath.data_1st
+                _h_temp[x] = self.symform_sys @ self.h_se[x,x] @ self.input_env.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs,
                             dims_fls = self.dims_fls)
 
             _diss = np.einsum("jklm,mn,jknp->jklp",
-                              self.h_sb,
-                              self.input_bath.data_2nd + (1j/2)*self.symform_bath,
-                              np.transpose(self.h_sb, [0,1,3,2]))
+                              self.h_se,
+                              self.input_env.data_2nd + (1j/2)*self.symform_env,
+                              self.h_se.transpose([0,1,3,2]))
             
             _c_mat = np.empty([np.prod(self.dims_fls[0]),
                                2*self.dims_cvs,
@@ -429,7 +445,7 @@ class QGhle(object):
                                dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
                 _rate,_jump = np.linalg.eigh(_diss[x,x])
-                _c_mat[x] = np.diag(np.sqrt(_rate)) @ np.conj(np.transpose(_jump))
+                _c_mat[x] = np.diag(np.sqrt(_rate)) @ _jump.conj().T
 
             _c_ops = [None for x in range(0,2*self.dims_cvs)]
             for x in range(0,2*self.dims_cvs):
@@ -444,27 +460,27 @@ class QGhle(object):
                                    dims_fls = self.dims_fls)
 
         else:
-            _h_temp = self.symform_sys @ self.h_sb @ self.input_bath.data_1st
+            _h_temp = self.symform_sys @ self.h_se @ self.input_env.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs)
 
-            _diss = (self.h_sb
-                     @ (self.input_bath.data_2nd + (1j/2)*self.symform_bath)
-                     @ np.transpose(self.h_sb))
+            _diss = (self.h_se
+                     @ (self.input_env.data_2nd + (1j/2)*self.symform_env)
+                     @ self.h_se.T)
             _rate,_jump = np.linalg.eigh(_diss)
-            _jump = np.conj(np.transpose(_jump))
+            _jump = _jump.conj().T
 
             _c_ops = [QGoper(data_1st = np.sqrt(_rate[x])*_jump[x],
                              dims_cvs = self.dims_cvs)
                       for x in range(0,len(_rate))]
 
         # Combine the coherent term from the effective drive Hamiltonian which
-        # has been generated from the in-field bath state means with the
-        # dissipation generated from the in-field bath state covariances.
-        _l_sys_bath = (qgauss.coherent(_h_drv)
-                       + sum([qgauss.dissipator(x) for x in _c_ops]))
+        # has been generated from the input-field state means with the
+        # dissipation generated from the input-field state covariances.
+        _l_sys_env = (qgauss.coherent(_h_drv)
+                      + sum([qgauss.dissipator(x) for x in _c_ops]))
             
-        return _l_sys + _l_sys_bath
+        return _l_sys + _l_sys_env
 
     '''
     ---------------
@@ -472,6 +488,88 @@ class QGhle(object):
     ---------------
     '''
 
+    ### Addition and subtraction of QGhles ###
+
+    def __add__(self, other: QGhle) -> QGhle:
+        # Addition with self.QGhle on the left
+        if isinstance(other, QGhle):
+            if ((self.dims_cvs == other.dims_cvs) and 
+                (self.dims_fls == other.dims_fls) and
+                (self.dims_env == other.dims_env) and
+                (self.input_env == other.input_env)
+                ):
+                return QGhle(h_sys = self.h_sys + other.h_sys,
+                             h_sys_env = self.h_sys_env + other.h_sys_env,
+                             input_env = self.input_env,
+                             dims_cvs = self.dims_cvs,
+                             dims_fls = self.dims_fls,
+                             dims_env = self.dims_env)
+            else:
+                raise ValueError("Cannot perform addition operation between " \
+                "QGhles with different dimensions or input correlations.")
+        elif other == 0:
+            return QGhle(self)
+        else:
+            raise TypeError("Cannot perform addition operation between the " \
+            "types QGhle and " + type(other).__name__ + ".")
+
+    def __radd__(self, other: QGhle) -> QGhle:
+        # Addition with the self.QGhle on the right
+        return self.__add__(other)
+
+    def __sub__(self, other: QGhle) -> QGsuper:
+        # Subtraction with self.QGhle on the left
+        return self.__add__(other.__neg__())
+
+    def __rsub__(self, other: QGhle) -> QGhle:
+        # Subtraction with self.QGsuper on the right
+        return (self.__neg__()).__add__(other)
+    
+    def __neg__(self) -> QGhle:
+        # Negation of self.QGhle
+        return QGhle(h_sys = -self.h_sys,
+                     h_sys_env = -self.h_sys_env,
+                     input_env = self.input_env,
+                     dims_cvs = self.dims_cvs,
+                     dims_fls = self.dims_fls,
+                     dims_env = self.dims_env)
+    
+    ### Multiplication and division of QGhles ###
+
+    def __mul__(self, other: complex) -> QGhle:
+        # Multiplication of number with self.QGhle on the left
+        if isinstance(other, (numbers.Number, np.number)):
+            return QGhle(h_sys = other*self.h_sys,
+                         h_sys_env = other*self.h_sys_env,
+                         input_env = self.input_env,
+                         dims_cvs = self.dims_cvs,
+                         dims_fls = self.dims_fls,
+                         dims_env = self.dims_env)
+        else:
+            raise TypeError("Cannot perform multiplication operation between " \
+            "the types QGhle and " + type(other).__name__ + ".")
+
+    def __rmul__(self, other: complex) -> QGhle:
+        # Multiplication with self.QGhle on the right
+        if isinstance(other, (numbers.Number, np.number)):
+            return self.__mul__(other)
+        else:
+            raise TypeError("Cannot perform multiplication operation between " \
+            "the types QGhle and " + type(other).__name__ + ".")
+
+    def __truediv__(self, other: complex) -> QGhle:
+        # Division of self.QGhle by number
+        if isinstance(other, (numbers.Number,np.number)):
+            return QGhle(h_sys = self.h_sys/other,
+                         h_sys_env = self.h_sys_env/other,
+                         input_env = self.input_env,
+                         dims_cvs = self.dims_cvs,
+                         dims_fls = self.dims_fls,
+                         dims_env = self.dims_env)
+        else:
+            raise TypeError("Cannot perform division operation between the " \
+            "types QGhle and " + type(other).__name__ + ".")
+        
     ### Assorted Methods ###  
     
     def scattering_matrix(self,
@@ -485,36 +583,36 @@ class QGhle(object):
         if self.isfls:
             if index is None:
                 _A = [(self.symform_sys @ self.h_sys[index,index].data_2nd
-                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
+                      + (1/2)*(self.symform_sys @ self.h_se[index,index]
+                               @ self.symform_env @ self.h_se[index,index].T))
                       for x in range(0,np.prod(self.dims_fls[0]))]
-                return [(- self.symform_bath
-                         @ np.transpose(self.h_sb[x,x])
+                return [(- self.symform_env
+                         @ self.h_se[x,x].T
                          @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs))
                          @ self.symform_sys
-                         @ self.h_sb[x,x]
-                         + np.identity(2*self.dims_bath))
+                         @ self.h_se[x,x]
+                         + np.identity(2*self.dims_env))
                         for x in range(0,np.prod(self.dims_fls[0]))]
             else:
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
-                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
-                return (- self.symform_bath
-                        @ np.transpose(self.h_sb[index,index])
+                      + (1/2)*(self.symform_sys @ self.h_se[index,index]
+                               @ self.symform_env @ self.h_se[index,index].T))
+                return (- self.symform_env
+                        @ self.h_se[index,index].T
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs))
                         @ self.symform_sys
-                        @ self.h_sb[index,index]
-                        + np.identity(2*self.dims_bath))
+                        @ self.h_se[index,index]
+                        + np.identity(2*self.dims_env))
         else:
             _A = (self.symform_sys @ self.h_sys.data_2nd
-                  + (1/2)*(self.symform_sys @ self.h_sb
-                           @ self.symform_bath @ np.transpose(self.h_sb)))
-            return (- self.symform_bath
-                    @ np.transpose(self.h_sb)
+                  + (1/2)*(self.symform_sys @ self.h_se
+                           @ self.symform_env @ self.h_se.T))
+            return (- self.symform_env
+                    @ self.h_se.T
                     @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs))
                     @ self.symform_sys
-                    @ self.h_sb 
-                    + np.identity(2*self.dims_bath))
+                    @ self.h_se 
+                    + np.identity(2*self.dims_env))
         
     def transfer_matrix(self,
                         freq: float = 0,
@@ -527,45 +625,45 @@ class QGhle(object):
         if self.isfls:
             if index is None:
                 _A = [(self.symform_sys @ self.h_sys.data_2nd[x,x]
-                      + (1/2)*(self.symform_sys @ self.h_sb[x,x]
-                               @ self.symform_bath @ np.transpose(self.h_sb[x,x])))
+                      + (1/2)*(self.symform_sys @ self.h_se[x,x]
+                               @ self.symform_env @ self.h_se[x,x].T))
                       for x in range(0,np.prod(self.dims_fls[0]))]
-                return [(- self.symform_bath
-                        @ np.transpose(self.h_sb[x,x])
+                return [(- self.symform_env
+                        @ self.h_se[x,x].T
                         @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs)))
                         for x in range(0,np.prod(self.dims_fls[0]))]
             else:
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
-                      + (1/2)*(self.symform_sys @ self.h_sb[index,index]
-                               @ self.symform_bath @ np.transpose(self.h_sb[index,index])))
-                return (- self.symform_bath
-                        @ np.transpose(self.h_sb[index,index])
+                      + (1/2)*(self.symform_sys @ self.h_se[index,index]
+                               @ self.symform_env @ self.h_se[index,index].T))
+                return (- self.symform_env
+                        @ self.h_se[index,index].T
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
         else:
             _A = (self.symform_sys @ self.h_sys.data_2nd
-                  + (1/2)*(self.symform_sys @ self.h_sb
-                           @ self.symform_bath @ np.transpose(self.h_sb)))
-            return (- self.symform_bath
-                    @ np.transpose(self.h_sb)
+                  + (1/2)*(self.symform_sys @ self.h_se
+                           @ self.symform_env @ self.h_se.T))
+            return (- self.symform_env
+                    @ self.h_se.T
                     @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
 
-    def output_bath(self, 
-                    freq: float = 0,
-                    index: int = None
-                   ) -> QGstate:
+    def output_env(self, 
+                   freq: float = 0,
+                   index: int = None
+                  ) -> QGstate:
         if not self.isgauss:
             raise AttributeError("System is not Gaussian-state preserving " \
-            "and so no bath out-field state can be constructed.")
+            "and so no output-field state can be constructed.")
 
         if self.isfls:
             if index is None:         
                 _out_mean = np.zeros((np.prod(self.dims_fls[0]),
                                       np.prod(self.dims_fls[1]),
-                                      2*dims_bath))
+                                      2*dims_env))
                 _out_cov = np.zeros((np.prod(self.dims_fls[0]),
                                      np.prod(self.dims_fls[1]),
-                                     2*dims_bath,
-                                     2*dims_bath))
+                                     2*dims_env,
+                                     2*dims_env))
                 
                 for x in range(0,np.prod(self.dims_fls[0])):
                     _smat = self.scattering_matrix(freq, x)
@@ -573,15 +671,15 @@ class QGhle(object):
                     _tmat = self.transfer_mat(freq, x)
 
                     _out_mean[x,x] = \
-                    (_smat @ self.input_bath.data_1st
+                    (_smat @ self.input_env.data_1st
                      + _tmat @ self.symform_sys @ self.h_sys.data_1st[x,x])
                     _out_cov[x,x] = \
-                    (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
-                           + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
+                    (1/2)*(_smat @ self.input_env.data_2nd @ _smat_neg.T
+                           + _smat_neg @ self.input_env.data_2nd @ _smat.T)
                 
                 return QGstate(data_2nd = _out_cov,
                                data_1st = _out_mean,
-                               dims_cvs = self.dims_bath,
+                               dims_cvs = self.dims_env,
                                dims_fls = self.dims_fls)
             else:
                 _smat = self.scattering_matrix(freq, index)
@@ -589,48 +687,62 @@ class QGhle(object):
                 _tmat = self.transfer_matrix(freq, index)
 
                 _out_mean \
-                = (_smat @ self.input_bath.data_1st
+                = (_smat @ self.input_env.data_1st
                    + _tmat @ self.symform_sys @ self.h_sys.data_1st[index,index])
                 _out_cov = \
-                (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
-                       + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
+                (1/2)*(_smat @ self.input_env.data_2nd @ _smat_neg.T
+                       + _smat_neg @ self.input_env.data_2nd @ _smat.T)
                 
                 return QGstate(data_2nd = _out_cov,
                                data_1st = _out_mean,
-                               dims_cvs = self.dims_bath)
+                               dims_cvs = self.dims_env)
         else:
             _smat = self.scattering_matrix(freq)
             _smat_neg = self.scattering_matrix(-freq)
             _tmat = self.transfer_matrix(freq)
 
-            _out_mean = (_smat @ self.input_bath.data_1st
+            _out_mean = (_smat @ self.input_env.data_1st
                          + _tmat @ self.symform_sys @ self.h_sys.data_1st)
-            _out_cov = (1/2)*(_smat @ self.input_bath.data_2nd @ np.transpose(_smat_neg)
-                              + _smat_neg @ self.input_bath.data_2nd @ np.transpose(_smat))
+            _out_cov = (1/2)*(_smat @ self.input_env.data_2nd @ _smat_neg.T
+                              + _smat_neg @ self.input_env.data_2nd @ _smat.T)
             
             return QGstate(data_2nd = _out_cov,
                            data_1st = _out_mean,
-                           dims_cvs = self.dims_bath)
+                           dims_cvs = self.dims_env)
 
     def __eq__(self, other: QGhle) -> bool:
         # Check equality of QGhle
         if (isinstance(other, QGhle) and 
-            (self.dims_fls == other.dims_fls) and
             (self.dims_cvs == other.dims_cvs) and
-            (self.dims_bath == other.dims_bath) and
+            (self.dims_fls == other.dims_fls) and
+            (self.dims_env == other.dims_env) and
             (self.h_sys == other.h_sys) and
-            (self.h_sys_bath == self.h_sys_bath) and
-            (self.input_bath == other.input_bath)
+            (self.h_sys_env == self.h_sys_env) and
+            (self.input_env == other.input_env)
             ):
                 return True
         else:
             return False
 
+    def __getitem__(self, index) -> QGhle:
+        # Grab CV elements from self at index in the FLS component
+        # and return a QGhle with a CV component only
+        if self.isfls and self.iscvs:
+            return QGhle(h_sys = self.h_sys[index],
+                         h_sys_env = self.h_sys_env[index],
+                         input_env = self.input_env,
+                         dims_cvs = self.dims_cvs,
+                         dims_env = self.dims_env)
+        else:
+            raise ValueError("QGhle requires an FLS and CV component to " \
+            "use this method. Access QGhle data arrays individually if " \
+            "specific elements are required.")
+        
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGhle:
         # Private void function to remove small magnitude elements from the data.
-        np.real(self.h_sb)[np.abs(np.real(self.h_sb)) < tol] = 0
-        np.imag(self.h_sb)[np.abs(np.imag(self.h_sb)) < tol] = 0
+        self.h_se.real[np.abs(self.h_se.real) < tol] = 0
+        self.h_se.imag[np.abs(self.h_se.imag) < tol] = 0
 
         self.h_sys.tidyup()
-        self.h_sys_bath.tidyup()
-        self.input_bath.tidyup()
+        self.h_sys_env.tidyup()
+        self.input_env.tidyup()

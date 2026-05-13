@@ -410,16 +410,16 @@ class QGsuper(object):
     def wigner_2nd_deriv_var(self) -> npt.NDArray:
         # Drift matrix, system dynamics matrix
         if self.isfls:
-            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
-                     - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
-                     + (self.data_2nd_m - np.transpose(self.data_2nd_m, [0,1,3,2])))
+            _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
+                     - (1/2)*(self.data_2nd_r + self.data_2nd_r.transpose([0,1,3,2]))
+                     + (self.data_2nd_m - self.data_2nd_m.transpose([0,1,3,2])))
             return np.einsum("jk,lmkn->lmjn",
                              (1j/2)*self.symform,
                              _data)
         else:
-            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
-                     - (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
-                     + (self.data_2nd_m - np.transpose(self.data_2nd_m)))
+            _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.T)
+                     - (1/2)*(self.data_2nd_r + self.data_2nd_r.T)
+                     + (self.data_2nd_m - self.data_2nd_m.T))
             return (1j/2)*self.symform @ _data
     
     @cached_property
@@ -427,29 +427,29 @@ class QGsuper(object):
         # Riccati coupling/feedback matrix, information-gain‑matrix, measurement‑error‑weight, trap/potential stiffness
         # quadratic / nonlinear coupling, gain or feedback matrix, Measurement‑based/feedback control
         if self.isfls:
-            return (-(1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
-                    -(1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
-                    -(self.data_2nd_m + np.transpose(self.data_2nd_m, [0,1,3,2])))
+            return (-(1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
+                    -(1/2)*(self.data_2nd_r + self.data_2nd_r.transpose([0,1,3,2]))
+                    -(self.data_2nd_m + self.data_2nd_m.transpose([0,1,3,2])))
         else:
-            return (-(1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
-                    -(1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
-                    -(self.data_2nd_m + np.transpose(self.data_2nd_m)))
+            return (-(1/2)*(self.data_2nd_l + self.data_2nd_l.T)
+                    -(1/2)*(self.data_2nd_r + self.data_2nd_r.T)
+                    -(self.data_2nd_m + self.data_2nd_m.T))
         
     @cached_property
     def wigner_2nd_deriv(self) -> npt.NDArray:
         # Diffusion matrix, noise matrix
         if self.isfls:
-            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l, [0,1,3,2]))
-                     + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r, [0,1,3,2]))
-                     - (self.data_2nd_m + np.transpose(self.data_2nd_m, [0,1,3,2])))
+            _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
+                     + (1/2)*(self.data_2nd_r + self.data_2nd_r.transpose([0,1,3,2]))
+                     - (self.data_2nd_m + self.data_2nd_m.transpose([0,1,3,2])))
             return np.einsum("jk,lmkn,np->lmjp",
                              (1/4)*self.symform,
                              _data,
                              self.symform)
         else:
-            _data = ((1/2)*(self.data_2nd_l + np.transpose(self.data_2nd_l))
-                     + (1/2)*(self.data_2nd_r + np.transpose(self.data_2nd_r))
-                     - (self.data_2nd_m + np.transpose(self.data_2nd_m)))
+            _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.T)
+                     + (1/2)*(self.data_2nd_r + self.data_2nd_r.T)
+                     - (self.data_2nd_m + self.data_2nd_m.T))
             return (1/4)*self.symform @ _data @ self.symform
     
     @cached_property
@@ -832,12 +832,12 @@ class QGsuper(object):
 
     def conj(self) -> QGsuper:
         # Complex-conjugate of all elements of the QGsuper
-        return QGsuper(data_2nd_l = np.conj(self.data_2nd_l),
-                       data_2nd_r = np.conj(self.data_2nd_r),
-                       data_2nd_m = np.conj(self.data_2nd_m),
-                       data_1st_l = np.conj(self.data_1st_l),
-                       data_1st_r = np.conj(self.data_1st_r),
-                       data_0th = np.conj(self.data_0th),
+        return QGsuper(data_2nd_l = self.data_2nd_l.conj(),
+                       data_2nd_r = self.data_2nd_r.conj(),
+                       data_2nd_m = self.data_2nd_m.conj(),
+                       data_1st_l = self.data_1st_l.conj(),
+                       data_1st_r = self.data_1st_r.conj(),
+                       data_0th = self.data_0th.conj(),
                        dims_cvs = self.dims_cvs,
                        dims_fls = self.dims_fls)
 
@@ -847,27 +847,27 @@ class QGsuper(object):
         # none are passed. 
         if self.isfls:
             if level is None:
-                return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l, [1,0,3,2]),
-                               data_2nd_r = np.transpose(self.data_2nd_r, [1,0,3,2]),
-                               data_2nd_m = np.transpose(self.data_2nd_m, [1,0,3,2]),
-                               data_1st_l = np.transpose(self.data_1st_l, [1,0,2]),
-                               data_1st_r = np.transpose(self.data_1st_r, [1,0,2]),
-                               data_0th = np.transpose(self.data_0th, [1,0]),
+                return QGsuper(data_2nd_l = self.data_2nd_l.transpose([1,0,3,2]),
+                               data_2nd_r = self.data_2nd_r.transpose([1,0,3,2]),
+                               data_2nd_m = self.data_2nd_m.transpose([1,0,3,2]),
+                               data_1st_l = self.data_1st_l.transpose([1,0,2]),
+                               data_1st_r = self.data_1st_r.transpose([1,0,2]),
+                               data_0th = self.data_0th.transpose([1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                                dims_cvs = self.dims_cvs)
             elif level == 'FLS':
-                return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l, [1,0,2,3]),
-                               data_2nd_r = np.transpose(self.data_2nd_r, [1,0,2,3]),
-                               data_2nd_m = np.transpose(self.data_2nd_m, [1,0,2,3]),
-                               data_1st_l = np.transpose(self.data_1st_l, [1,0,2]),
-                               data_1st_r = np.transpose(self.data_1st_r, [1,0,2]),
-                               data_0th = np.transpose(self.data_0th, [1,0]),
+                return QGsuper(data_2nd_l = self.data_2nd_l.transpose([1,0,2,3]),
+                               data_2nd_r = self.data_2nd_r.transpose([1,0,2,3]),
+                               data_2nd_m = self.data_2nd_m.transpose([1,0,2,3]),
+                               data_1st_l = self.data_1st_l.transpose([1,0,2]),
+                               data_1st_r = self.data_1st_r.transpose([1,0,2]),
+                               data_0th = self.data_0th.transpose([1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                                dims_cvs = self.dims_cvs)
             elif level == 'CVS':
-                return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l, [0,1,3,2]),
-                               data_2nd_r = np.transpose(self.data_2nd_r, [0,1,3,2]),
-                               data_2nd_m = np.transpose(self.data_2nd_m, [0,1,3,2]),
+                return QGsuper(data_2nd_l = self.data_2nd_l.transpose([0,1,3,2]),
+                               data_2nd_r = self.data_2nd_r.transpose([0,1,3,2]),
+                               data_2nd_m = self.data_2nd_m.transpose([0,1,3,2]),
                                data_1st_l = self.data_1st_l,
                                data_1st_r = self.data_1st_r,
                                data_0th = self.data_0th,
@@ -875,12 +875,12 @@ class QGsuper(object):
                                dims_cvs = self.dims_cvs)
         else:
             if level == 'CVS' or level is None:
-                return QGsuper(data_2nd_l = np.transpose(self.data_2nd_l),
-                               data_2nd_r = np.transpose(self.data_2nd_r),
-                               data_2nd_m = np.transpose(self.data_2nd_m),
-                               data_1st_l = np.transpose(self.data_1st_l),
-                               data_1st_r = np.transpose(self.data_1st_r),
-                               data_0th = np.transpose(self.data_0th),
+                return QGsuper(data_2nd_l = self.data_2nd_l.T,
+                               data_2nd_r = self.data_2nd_r.T,
+                               data_2nd_m = self.data_2nd_m.T,
+                               data_1st_l = self.data_1st_l.T,
+                               data_1st_r = self.data_1st_r.T,
+                               data_0th = self.data_0th.T,
                                dims_cvs = self.dims_cvs)
             elif level == 'FLS':
                 return self
@@ -889,43 +889,43 @@ class QGsuper(object):
         # Adjoint/complex-conjugate/dagger of QGsuper
         # Right and left-multiplication are switched
         if self.isfls:
-            return QGsuper(data_2nd_l = np.transpose(np.conj(self.data_2nd_l), [1,0,3,2]),
-                           data_2nd_r = np.transpose(np.conj(self.data_2nd_r), [1,0,3,2]),
-                           data_2nd_m = np.transpose(np.conj(self.data_2nd_m), [1,0,3,2]),
-                           data_1st_l = np.transpose(np.conj(self.data_1st_l), [1,0,2]),
-                           data_1st_r = np.transpose(np.conj(self.data_1st_r), [1,0,2]),
-                           data_0th = np.transpose(np.conj(self.data_0th), [1,0]),
+            return QGsuper(data_2nd_l = self.data_2nd_l.conj().transpose([1,0,3,2]),
+                           data_2nd_r = self.data_2nd_r.conj().transpose([1,0,3,2]),
+                           data_2nd_m = self.data_2nd_m.conj().transpose([1,0,3,2]),
+                           data_1st_l = self.data_1st_l.conj().transpose([1,0,2]),
+                           data_1st_r = self.data_1st_r.conj().transpose([1,0,2]),
+                           data_0th = self.data_0th.conj().transpose([1,0]),
                            dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                            dims_cvs = self.dims_cvs)
         else:
-            return QGsuper(data_2nd_l = np.transpose(np.conj(self.data_2nd_l)),
-                           data_2nd_r = np.transpose(np.conj(self.data_2nd_r)),
-                           data_2nd_m = np.transpose(np.conj(self.data_2nd_m)),
-                           data_1st_l = np.transpose(np.conj(self.data_1st_l)),
-                           data_1st_r = np.transpose(np.conj(self.data_1st_r)),
-                           data_0th = np.transpose(np.conj(self.data_0th)),
+            return QGsuper(data_2nd_l = self.data_2nd_l.conj().T,
+                           data_2nd_r = self.data_2nd_r.conj().T,
+                           data_2nd_m = self.data_2nd_m.conj().T,
+                           data_1st_l = self.data_1st_l.conj().T,
+                           data_1st_r = self.data_1st_r.conj().T,
+                           data_0th = self.data_0th.conj().T,
                            dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                            dims_cvs = self.dims_cvs)
         
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGsuper:
         # Private void function to remove small magnitude elements from data
-        np.real(self.data_2nd_l)[np.abs(np.real(self.data_2nd_l)) < tol] = 0
-        np.imag(self.data_2nd_l)[np.abs(np.imag(self.data_2nd_l)) < tol] = 0
+        self.data_2nd_l.real[np.abs(self.data_2nd_l.real) < tol] = 0
+        self.data_2nd_l.imag[np.abs(self.data_2nd_l.imag) < tol] = 0
 
-        np.real(self.data_2nd_r)[np.abs(np.real(self.data_2nd_r)) < tol] = 0
-        np.imag(self.data_2nd_r)[np.abs(np.imag(self.data_2nd_r)) < tol] = 0
+        self.data_2nd_r.real[np.abs(self.data_2nd_r.real) < tol] = 0
+        self.data_2nd_r.imag[np.abs(self.data_2nd_r.imag) < tol] = 0
 
-        np.real(self.data_2nd_m)[np.abs(np.real(self.data_2nd_m)) < tol] = 0
-        np.imag(self.data_2nd_m)[np.abs(np.imag(self.data_2nd_m)) < tol] = 0
+        self.data_2nd_m.real[np.abs(self.data_2nd_m.real) < tol] = 0
+        self.data_2nd_m.imag[np.abs(self.data_2nd_m.imag) < tol] = 0
 
-        np.real(self.data_1st_l)[np.abs(np.real(self.data_1st_l)) < tol] = 0
-        np.imag(self.data_1st_l)[np.abs(np.imag(self.data_1st_l)) < tol] = 0
+        self.data_1st_l.real[np.abs(self.data_1st_l.real) < tol] = 0
+        self.data_1st_l.imag[np.abs(self.data_1st_l.imag) < tol] = 0
 
-        np.real(self.data_1st_r)[np.abs(np.real(self.data_1st_r)) < tol] = 0
-        np.imag(self.data_1st_r)[np.abs(np.imag(self.data_1st_r)) < tol] = 0
+        self.data_1st_r.real[np.abs(self.data_1st_r.real) < tol] = 0
+        self.data_1st_r.imag[np.abs(self.data_1st_r.imag) < tol] = 0
 
-        np.real(self.data_0th)[np.abs(np.real(self.data_0th)) < tol] = 0
-        np.imag(self.data_0th)[np.abs(np.imag(self.data_0th)) < tol] = 0
+        self.data_0th.real[np.abs(self.data_0th.real) < tol] = 0
+        self.data_0th.imag[np.abs(self.data_0th.imag) < tol] = 0
 
     @staticmethod
     def _iszero(data: npt.NDArray) -> bool:

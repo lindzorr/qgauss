@@ -1,10 +1,11 @@
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy import linalg as la
+from scipy.linalg import expm
 
-__all__ = ['symplectic_form','exp_integrator_phi_function','trim',
-           'mat_to_vec','vec_to_mat','symmat_to_vec','vec_to_symmat']
+__all__ = ['symplectic_form','expm_int','trim',
+           'mat_to_vec','vec_to_mat',
+           'symmat_to_vec','vec_to_symmat']
 
 """ Utility functions used accross module. """
 
@@ -13,33 +14,33 @@ def symplectic_form(N: int = 1) -> npt.NDArray:
     return np.kron(np.identity(N),np.array([[0,1],[-1,0]]))
 
 
-def exp_integrator_phi_function(X: npt.NDArray, 
-                                k: int = 1
-                                ) -> npt.NDArray:
+def expm_int(X: npt.NDArray,
+             k: int = 1
+            ) -> npt.NDArray:
     """
-    ϕ_k-functions used in numerical integration of linear ordinary differential 
-    equations, defined as:
+    Functions used in the numerical integration of linear ordinary 
+    differential equations, defined as:
         ϕ_k(X) = ∫_0^1 exp[(1-t)*X]*t^(k-1)/(k-1)! dt 
                = Σ_{l=1}^∞ X^l/(l+k)!
     The most common example is ϕ_1(X) = (exp[X]-I)/X. Solved by padding the 
     matrix X with the identity and zeros, then taking the matrix exponential, 
     and finally extracting the relevant portion to calculate ϕ_k(X). In this 
     way, the matrix inverse can be aboided when calculating ϕ_k(X), and so this 
-    algorithm will work when X is singular. For time-dependent integrators, we
-    will often calculate (exp[t*X]-I)/X = t*ϕ_1(t*X).
+    algorithm will work for singular X. For time-dependent integrators, we will
+    often calculate (exp[t*X]-I)/X = t*ϕ_1(t*X).
 
     ---- Parameters ----
-    X : nd.array
+    X : array
     k : int
         Order of the ϕ_k-function, where the default is k=1. k=0 returns the 
         usual matrix exponential.
 
     ---- Output ----
-    ϕ_k(X) : nd.array
+    ϕ_k(X) : array
     """
     _n = np.shape(X)[0]
     _Z = np.block([np.block([[X],[np.zeros((_n*k,_n))]]),np.eye(_n*(k+1),_n*k)])
-    return la.expm(_Z)[0:_n,_n*k:_n*(k+1)]
+    return expm(_Z)[0:_n,_n*k:_n*(k+1)]
 
 
 def trim(input: npt.NDArray, 
@@ -52,10 +53,10 @@ def trim(input: npt.NDArray,
 
 def mat_to_vec(input: npt.NDArray, 
                order = 'C'
-               ) -> npt.NDArray:
+              ) -> npt.NDArray:
     """ Vectorization of a matrix, select 'C' for column stacking 
     and 'R' for row stacking. """
-    if order == 'C':
+    if order == 'C' or order is None:
         return input.ravel(order = 'C')
     elif order == 'R':
         return input.ravel(order = 'R')
@@ -65,8 +66,9 @@ def mat_to_vec(input: npt.NDArray,
     
 
 def vec_to_mat(input: npt.NDArray, 
-               shape: tuple[int], order = 'C'
-               ) -> npt.NDArray:
+               shape: tuple[int], 
+               order = 'C'
+              ) -> npt.NDArray:
     """ Inverse of the vectorization of a matrix, select 'C' for column 
     stacking and 'R' for row stacking. """
     if order == 'C':
@@ -78,18 +80,32 @@ def vec_to_mat(input: npt.NDArray,
         "vector into matrix columns (C) or rows (R).")
 
 
-def symmat_to_vec(input: npt.NDArray) -> npt.NDArray:
-    """ Vectorization where a NxN symmetric matrix is converted to a vector 
-    columnwise, saving only the unique elements, resulting in a vector 
-    of length N(N+1)/2. """
-    return (input)[np.tril_indices(input.shape[0])]
+def symmat_to_vec(input: npt.NDArray,
+                  order = 'C'
+                 ) -> npt.NDArray:
+    """ Vectorization where a NxN symmetric matrix is converted to a vector, 
+    saving only the unique elements, resulting in a vector of length N(N+1)/2. """
+    if order == 'C':
+        return (input)[np.tril_indices(input.shape[0])]
+    elif order == 'R':
+        return (input)[np.triu_indices(input.shape[0])]
+    else:
+        raise TypeError("Order of vectorization must be either " \
+        "column-stacking (C) or row-stacking (R).")
 
 
 def vec_to_symmat(input: npt.NDArray, 
-                  dims: int
-                  ) -> npt.NDArray:
+                  order = 'C'
+                 ) -> npt.NDArray:
     """ Convert a vector of length N(N+1)/2 into a NxN symmetric matrix. """
-    _mask = np.tri(dims, dtype=bool , k = 0)
-    _out = np.zeros((dims,dims), dtype=complex)
-    _out[_mask] = input
-    return _out + np.triu(np.transpose(_out),1)
+    _dims = round((np.sqrt(8*len(input)+1)-1)/2)
+    if order == 'C':
+        _idx = np.tril_indices(_dims)
+    elif order == 'R':
+        _idx = np.triu_indices(_dims)
+    else:
+        raise TypeError("Order of inverse-vectorization must be convert " \
+        "vector into matrix columns (C) or rows (R).")    
+    _out = np.zeros((_dims, _dims), dtype=complex)
+    _out[_idx] = input
+    return _out + _out.T - np.diag(np.diag(_out))

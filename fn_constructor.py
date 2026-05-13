@@ -7,7 +7,8 @@ from .qgstate import QGstate
 from .qgoper import QGoper
 
 __all__ = ['vacuum','thermal','displaced','sm_squeeze','tm_squeeze',
-           'qubit_excited','qubit_ground','basis_state',
+           'qubit_up','qubit_down','qubit_plus','qubit_minus',
+           'qubit_plus','qubit_minus','basis_state',
            'destroy','create','position','momentum',
            'one','identity','identity_cvs','num',
            'qeye','identity_fls','qzero','basis_oper',
@@ -88,14 +89,34 @@ def tm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
     return QGstate(data_2nd = _cov,
                    dims_cvs = 2)
 
-def qubit_excited() -> QGstate:
-    # Density matrix for excited qubit state
+def qubit_up() -> QGstate:
+    # Density matrix for qubit up/excited-state
     return QGstate(data_0th = np.array([[1,0],[0,0]]),
                    dims_fls = [[2],[2]])
 
-def qubit_ground() -> QGstate:
-    # Density matrix for ground qubit state
+def qubit_down() -> QGstate:
+    # Density matrix for qubit down/ground-state
     return QGstate(data_0th = np.array([[0,0],[0,1]]),
+                   dims_fls = [[2],[2]])
+
+def qubit_plus() -> QGstate:
+    # Density matrix for qubit plus-state, (|0>+|1>)/sqrt(2)
+    return QGstate(data_0th = (1/2)*np.array([[1,1],[1,1]]),
+                   dims_fls = [[2],[2]])
+
+def qubit_minus() -> QGstate:
+    # Density matrix for qubit minus-state, (|0>-|1>)/sqrt(2)
+    return QGstate(data_0th = (1/2)*np.array([[1,-1],[-1,1]]),
+                   dims_fls = [[2],[2]])
+
+def qubit_right() -> QGstate:
+    # Density matrix for qubit right-state, (|0>+i|1>)/sqrt(2)
+    return QGstate(data_0th = (1/2)*np.array([[1,1j],[-1j,1]]),
+                   dims_fls = [[2],[2]])
+
+def qubit_lefft() -> QGstate:
+    # Density matrix for qubit left-state, (|0>-i|1>)/sqrt(2)
+    return QGstate(data_0th = (1/2)*np.array([[1,-1j],[1j,1]]),
                    dims_fls = [[2],[2]])
 
 def basis_state(m: int, N: int = 1) -> QGoper:

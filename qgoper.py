@@ -218,9 +218,9 @@ class QGoper(object):
             if np.shape(data) == self.shape_2nd:
                 if self.isfls:
                     _symm = (np.asarray(data, dtype=complex) 
-                             + np.transpose(np.asarray(data, dtype=complex), [0,1,3,2]))/2
+                             + np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
                     _asym = (np.asarray(data, dtype=complex) 
-                             - np.transpose(np.asarray(data, dtype=complex), [0,1,3,2]))/2
+                             - np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
                     self._data_2nd = _symm
                     if (data.size != 0 and 
                         np.any(np.abs(_asym) > qgauss.settings.atol)
@@ -229,9 +229,9 @@ class QGoper(object):
                         (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm', self.symform, _asym))
                 else:
                     _symm = (np.asarray(data, dtype=complex) 
-                             + np.transpose(np.asarray(data, dtype=complex)))/2
+                             + np.asarray(data, dtype=complex).T)/2
                     _asym = (np.asarray(data, dtype=complex) 
-                             - np.transpose(np.asarray(data, dtype=complex)))/2
+                             - np.asarray(data, dtype=complex).T)/2
                     self._data_2nd = _symm
                     if (data.size != 0 and 
                         np.any(np.abs(_asym) > qgauss.settings.atol)
@@ -705,9 +705,9 @@ class QGoper(object):
 
     def conj(self) -> QGoper:
         # Complex-conjugate of all elements of the QGoper
-        return QGoper(data_2nd = np.conj(self.data_2nd),
-                      data_1st = np.conj(self.data_1st),
-                      data_0th = np.conj(self.data_0th),
+        return QGoper(data_2nd = self.data_2nd.conj(),
+                      data_1st = self.data_1st.conj(),
+                      data_0th = self.data_0th.conj(),
                       dims_cvs = self.dims_cvs,
                       dims_fls = self.dims_fls)
 
@@ -717,26 +717,26 @@ class QGoper(object):
         # is passed.
         if self.isfls:
             if level is None:
-                return QGoper(data_2nd = np.transpose(self.data_2nd, [1,0,3,2]),
-                              data_1st = np.transpose(self.data_1st, [1,0,2]),
-                              data_0th = np.transpose(self.data_0th, [1,0]),
+                return QGoper(data_2nd = self.data_2nd.transpose([1,0,3,2]),
+                              data_1st = self.data_1st.transpose([1,0,2]),
+                              data_0th = self.data_0th.transpose([1,0]),
                               dims_fls = [self.dims_fls[1],self.dims_fls[0]],
                               dims_cvs = self.dims_cvs)
             elif level == 'FLS':
-                return QGoper(data_2nd = np.transpose(self.data_2nd, [1,0,2,3]),
-                              data_1st = np.transpose(self.data_1st, [1,0,2]),
-                              data_0th = np.transpose(self.data_0th, [1,0]),
+                return QGoper(data_2nd = self.data_2nd.transpose([1,0,2,3]),
+                              data_1st = self.data_1st.transpose([1,0,2]),
+                              data_0th = self.data_0th.transpose([1,0]),
                               dims_fls = [self.dims_fls[1],self.dims_fls[0]],
                               dims_cvs = self.dims_cvs)
             elif level == 'CVS':
-                return QGoper(data_2nd = np.transpose(self.data_2nd, [0,1,3,2]),
+                return QGoper(data_2nd = self.data_2nd.transpose([0,1,3,2]),
                               data_1st = self.data_1st,
                               data_0th = self.data_0th,
                               dims_fls = self.dims_fls,
                               dims_cvs = self.dims_cvs)
         else:
             if level == 'CVS' or level is None:
-                return QGoper(data_2nd = np.transpose(self.data_2nd),
+                return QGoper(data_2nd = self.data_2nd.T,
                               data_1st = self.data_1st,
                               data_0th = self.data_0th,
                               dims_cvs = self.dims_cvs)
@@ -747,29 +747,29 @@ class QGoper(object):
     def dag(self) -> QGoper:
         # Adjoint/complex-conjugate/dagger of QGoper
         if self.isfls:
-            return QGoper(data_2nd = np.transpose(np.conj(self.data_2nd), [1,0,3,2]),
-                          data_1st = np.transpose(np.conj(self.data_1st), [1,0,2]),
-                          data_0th = np.transpose(np.conj(self.data_0th), [1,0]),
+            return QGoper(data_2nd = self.data_2nd.conj().transpose([1,0,3,2]),
+                          data_1st = self.data_1st.conj().transpose([1,0,2]),
+                          data_0th = self.data_0th.conj().transpose([1,0]),
                           dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                           dims_cvs = self.dims_cvs)
         else:
-            return QGoper(data_2nd = np.transpose(np.conj(self.data_2nd)),
-                          data_1st = np.conj(self.data_1st),
-                          data_0th = np.conj(self.data_0th),
+            return QGoper(data_2nd = self.data_2nd.conj().T,
+                          data_1st = self.data_1st.conj(),
+                          data_0th = self.data_0th.conj(),
                           dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                           dims_cvs = self.dims_cvs)
 
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGoper:
         # Private void function to remove small magnitude elements
         # from the data arrays.
-        np.real(self.data_2nd)[np.abs(np.real(self.data_2nd)) < tol] = 0
-        np.imag(self.data_2nd)[np.abs(np.imag(self.data_2nd)) < tol] = 0
+        self.data_2nd.real[np.abs(self.data_2nd.real) < tol] = 0
+        self.data_2nd.imag[np.abs(self.data_2nd.imag) < tol] = 0
 
-        np.real(self.data_1st)[np.abs(np.real(self.data_1st)) < tol] = 0
-        np.imag(self.data_1st)[np.abs(np.imag(self.data_1st)) < tol] = 0
+        self.data_1st.real[np.abs(self.data_1st.real) < tol] = 0
+        self.data_1st.imag[np.abs(self.data_1st.imag) < tol] = 0
 
-        np.real(self.data_0th)[np.abs(np.real(self.data_0th)) < tol] = 0
-        np.imag(self.data_0th)[np.abs(np.imag(self.data_0th)) < tol] = 0
+        self.data_0th.real[np.abs(self.data_0th.real) < tol] = 0
+        self.data_0th.imag[np.abs(self.data_0th.imag) < tol] = 0
 
     @staticmethod
     def _iszero(data: npt.NDArray) -> bool:

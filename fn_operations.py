@@ -1,7 +1,7 @@
 import numpy.typing as npt
 import qgauss
 import numpy as np
-from scipy import linalg as la
+from scipy.linalg import expm
 
 from .qgstate import QGstate
 from .qgoper import QGoper
@@ -166,16 +166,16 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
         "symplectic-affine transformation have different dimensions.")
     
     # Construct elements of the symplectic-affine transformation
-    _S = la.expm(gen_oper.symform @ gen_oper.data_2nd)
-    _d = (exp_integrator_phi_function(gen_oper.symform @ gen_oper.data_2nd)
+    _S = expm(gen_oper.symform @ gen_oper.data_2nd)
+    _d = (expm_int(gen_oper.symform @ gen_oper.data_2nd)
           @ gen_oper.symform @ gen_oper.data_1st)
 
     if isinstance(input, QGstate):
         if not input.isfls:
-            _out_data_2nd = _S @ input.data_2nd @ np.transpose(_S)
+            _out_data_2nd = _S @ input.data_2nd @ _S.T
             _out_data_1st = _S @ input.data_1st + _d
         else:
-            _out_data_2nd = np.array([[(_S @ input[j,k].data_2nd @ np.transpose(_S))
+            _out_data_2nd = np.array([[(_S @ input[j,k].data_2nd @ _S.T)
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
             _out_data_1st = np.array([[(_S @ input[j,k].data_1st + _d)
@@ -190,18 +190,18 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
 
     elif isinstance(input, QGoper):
         if not input.isfls:
-            _out_data_2nd = np.transpose(_S) @ input.data_2nd @ _S
-            _out_data_1st = ((1/2)*(np.transpose(_S) @ input.data_2nd @ _d)
+            _out_data_2nd = _S.T @ input.data_2nd @ _S
+            _out_data_1st = ((1/2)*(_S.T @ input.data_2nd @ _d)
                              + (1/2)*(_d @ input.data_2nd @ _S) 
                              + (input.data_1st @ _S))
             _out_data_0th = ((1/2)*(_d @ input.data_2nd @ _d) 
                              + (input.data_1st @ _d) 
                              + input.data_0th)
         else:
-            _out_data_2nd = np.array([[(np.transpose(_S) @ input.data_2nd[j,k] @ _S)
+            _out_data_2nd = np.array([[(_S.T @ input.data_2nd[j,k] @ _S)
                                        for k in range(input.shape_0th[1])]
                                        for j in range(input.shape_0th[0])])
-            _out_data_1st = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd[j,k] @ _d)
+            _out_data_1st = np.array([[((1/2)*(_S.T @ input.data_2nd[j,k] @ _d)
                                         + (1/2)*(_d @ input.data_2nd[j,k] @ _S)
                                         + (input.data_1st[j,k] @ _S))
                                        for k in range(input.shape_0th[1])]
@@ -220,16 +220,16 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
     
     elif isinstance(input, QGsuper):
         if not input.isfls:
-            _out_data_2nd_l = np.transpose(_S) @ input.data_2nd_l @ _S
-            _out_data_2nd_r = np.transpose(_S) @ input.data_2nd_r @ _S
-            _out_data_2nd_m = np.transpose(_S) @ input.data_2nd_m @ _S
-            _out_data_1st_l = ((1/2)*(np.transpose(_S) @ input.data_2nd_l @ _d)
+            _out_data_2nd_l = _S.T @ input.data_2nd_l @ _S
+            _out_data_2nd_r = _S.T @ input.data_2nd_r @ _S
+            _out_data_2nd_m = _S.T @ input.data_2nd_m @ _S
+            _out_data_1st_l = ((1/2)*(_S.T @ input.data_2nd_l @ _d)
                                + (1/2)*(_d @ input.data_2nd_l @ _S) 
                                + (_d @ input.data_2nd_m @ _S) 
                                + (input.data_1st_l @ _S))
-            _out_data_1st_r = ((1/2)*(np.transpose(_S) @ input.data_2nd_r @ _d)
+            _out_data_1st_r = ((1/2)*(_S.T @ input.data_2nd_r @ _d)
                                + (1/2)*(_d @ input.data_2nd_r @ _S) 
-                               + (np.transpose(_S) @ input.data_2nd_m @ _d) 
+                               + (_S.T @ input.data_2nd_m @ _d) 
                                + (input.data_1st_r @ _S))
             _out_data_0th = ((1/2)*(_d @ input.data_2nd_l @ _d) 
                              + (1/2)*(_d @ input.data_2nd_r @ _d)
@@ -238,24 +238,24 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                              + (input.data_1st_r @ _d)
                              + input.data_0th)
         else:
-            _out_data_2nd_l = np.array([[(np.transpose(_S) @ input.data_2nd_l[j,k] @ _S)
+            _out_data_2nd_l = np.array([[(_S.T @ input.data_2nd_l[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_2nd_r = np.array([[(np.transpose(_S) @ input.data_2nd_r[j,k] @ _S)
+            _out_data_2nd_r = np.array([[(_S.T @ input.data_2nd_r[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_2nd_m = np.array([[(np.transpose(_S) @ input.data_2nd_m[j,k] @ _S)
+            _out_data_2nd_m = np.array([[(_S.T @ input.data_2nd_m[j,k] @ _S)
                                          for k in range(input.shape_0th[1])]
                                          for j in range(input.shape_0th[0])])
-            _out_data_1st_l = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd_l[j,k] @ _d)
+            _out_data_1st_l = np.array([[((1/2)*(_S.T @ input.data_2nd_l[j,k] @ _d)
                                           + (1/2)*(_d @ input.data_2nd_l[j,k] @ _S)
                                           + (_d @ input.data_2nd_m[j,k] @ _S)
                                           + (input.data_1st_l[j,k] @ _S))
                                           for k in range(input.shape_0th[1])]
                                           for j in range(input.shape_0th[0])])
-            _out_data_1st_r = np.array([[((1/2)*(np.transpose(_S) @ input.data_2nd_r[j,k] @ _d)
+            _out_data_1st_r = np.array([[((1/2)*(_S.T @ input.data_2nd_r[j,k] @ _d)
                                           + (1/2)*(_d @ input.data_2nd_r[j,k] @ _S)
-                                          + (np.transpose(_S) @ input.data_2nd_m[j,k] @ _d)
+                                          + (_S.T @ input.data_2nd_m[j,k] @ _d)
                                           + (input.data_1st_r[j,k] @ _S))
                                           for k in range(input.shape_0th[1])]
                                           for j in range(input.shape_0th[0])])

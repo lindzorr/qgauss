@@ -31,8 +31,8 @@ def measurement_rate(HLE: QGhle,
     ---- Parameters ----
     HLE : QGoper
         QGhle object representing the Heisenberg-Langevin equations, which 
-        encodes the system Hamiltonian, system-bath Hamiltonian, and 
-        input state of the bath.
+        encodes the system Hamiltonian, system-environment Hamiltonian, and 
+        input state of the environment.
     pointers : string
         The measurement rate is to be calculated between the pointer states for 
         these two elements of the qubit density matrix. This is to be passed as 
@@ -48,7 +48,7 @@ def measurement_rate(HLE: QGhle,
     meas_oper : QGoper
         The operator to be measured at the output of the system. This operator 
         acts only on the Hilbert space of the
-        bath modes and must be linear.
+        environment modes and must be linear.
     meas_mode : int or list(int)
         Output modes that are monitored during the measurement. To be used in 
         case no meas_oper is specified. If none are given, then it is assumed 
@@ -84,8 +84,8 @@ def measurement_rate(HLE: QGhle,
         _q_B = np.prod(HLE.dims_fls[1]) - int(_qbinary.split(',')[1],2) - 1
 
         # Generate the output states of the system
-        _pointer_A = HLE.output_bath(freq = freq, index = _q_A)
-        _pointer_B = HLE.output_bath(freq = freq, index = _q_B)
+        _pointer_A = HLE.output_env(freq = freq, index = _q_A)
+        _pointer_B = HLE.output_env(freq = freq, index = _q_B)
 
         (meas_rate, meas_signal, meas_noise) = \
             _measurement_rate_solver(pointer_A = _pointer_A, 
@@ -106,8 +106,8 @@ def measurement_rate(HLE: QGhle,
 
         for _q_A in range(0,_row_total):
             for _q_B in range(0,_col_total):
-                _pointer_A = HLE.output_bath(freq = freq, index = _q_A)
-                _pointer_B = HLE.output_bath(freq = freq, index = _q_B)
+                _pointer_A = HLE.output_env(freq = freq, index = _q_A)
+                _pointer_B = HLE.output_env(freq = freq, index = _q_B)
 
                 (meas_rate[_q_A,_q_B], meas_signal[_q_A,_q_B], meas_noise[_q_A,_q_B]) = \
                     _measurement_rate_solver(pointer_A = _pointer_A,
@@ -162,7 +162,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
         else:
             _noise_A = meas_oper.data_1st @ pointer_A.data_2nd @ meas_oper.data_1st
             _noise_B = meas_oper.data_1st @ pointer_B.data_2nd @ meas_oper.data_1st
-            meas_noise = np.real(_noise_A + _noise_B)
+            meas_noise = _noise_A.real + _noise_B.real
 
     else:
         # Check if a measurement operator has been provided, and if not pick the
@@ -180,7 +180,7 @@ def _measurement_rate_solver(pointer_A: QGstate,
         _noise_B = _meas_oper.data_1st @ pointer_B.data_2nd @ _meas_oper.data_1st
 
         meas_signal = (1/4)*np.abs(_signal_A - _signal_B)**2
-        meas_noise = np.real(_noise_A + _noise_B)
+        meas_noise = _noise_A.real + _noise_B.real
         meas_rate = meas_signal/(meas_noise + 2*noise_rest)
 
     return meas_rate,meas_signal,meas_noise
@@ -210,16 +210,16 @@ def _optimum_measurement_operator(pointer_A: QGstate,
     meas_oper : QGoper
         Linear measurement operator which maximizes the measurement signal.
     """
-    _dims_bath = pointer_A.dims_cvs
-    # IF no measurement mode(s) provided, assume all bath modes are monitored.
+    _dims_env = pointer_A.dims_cvs
+    # IF no measurement mode(s) provided, assume all environment modes are monitored.
     if meas_mode is None:
-        _mode_index = np.ones(2*_dims_bath)
+        _mode_index = np.ones(2*_dims_env)
     # Else, generate a vector with zeroes in the quadratures of unmonitored 
     # modes, and ones in the position of quadratures of monitored modes.
     else:
         if isinstance(meas_mode, int): 
             meas_mode = [meas_mode]
-        _mode_index = np.zeros(2*_dims_bath)
+        _mode_index = np.zeros(2*_dims_env)
         for i in meas_mode: _mode_index[2*i-2:2*i] = 1
     # Solve for the optimal weights, and use to normalize vector get the 
     # optimum measurement operator.
@@ -228,9 +228,9 @@ def _optimum_measurement_operator(pointer_A: QGstate,
     if all([w == 0 for w in np.abs(_weights)]):
         # If all weights are zero, then no operator is optimal. 
         # Return the zero operator.
-        meas_oper = QGoper(dims_cvs = _dims_bath)
+        meas_oper = QGoper(dims_cvs = _dims_env)
     else:
         meas_oper = QGoper(data_1st = _weights / np.sqrt(np.sum(_weights**2)),
-                           dims_cvs = _dims_bath)
+                           dims_cvs = _dims_env)
     
     return meas_oper
