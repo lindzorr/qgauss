@@ -25,7 +25,7 @@ def expm_int(X: npt.NDArray,
     The most common example is ϕ_1(X) = (exp[X]-I)/X. Solved by padding the 
     matrix X with the identity and zeros, then taking the matrix exponential, 
     and finally extracting the relevant portion to calculate ϕ_k(X). In this 
-    way, the matrix inverse can be aboided when calculating ϕ_k(X), and so this 
+    way, the matrix inverse can be avoided when calculating ϕ_k(X), and so this 
     algorithm will work for singular X. For time-dependent integrators, we will
     often calculate (exp[t*X]-I)/X = t*ϕ_1(t*X).
 
@@ -39,8 +39,9 @@ def expm_int(X: npt.NDArray,
     ϕ_k(X) : array
     """
     _n = np.shape(X)[0]
-    _Z = np.block([np.block([[X],[np.zeros((_n*k,_n))]]),np.eye(_n*(k+1),_n*k)])
-    return expm(_Z)[0:_n,_n*k:_n*(k+1)]
+    return expm(np.block([np.block([[X],[np.zeros((_n*k,_n))]]),
+                          np.eye(_n*(k+1),_n*k)])
+                )[0:_n,_n*k:_n*(k+1)]
 
 
 def trim(input: npt.NDArray, 
@@ -65,16 +66,16 @@ def mat_to_vec(input: npt.NDArray,
         "column-stacking (C) or row-stacking (R).")
     
 
-def vec_to_mat(input: npt.NDArray, 
-               shape: tuple[int], 
+def vec_to_mat(input: npt.NDArray,  
                order = 'C'
               ) -> npt.NDArray:
     """ Inverse of the vectorization of a matrix, select 'C' for column 
     stacking and 'R' for row stacking. """
+    _dims = np.sqrt(len(input))
     if order == 'C':
-        return np.reshape(input, shape, order = 'C')
+        return np.reshape(input, (_dims,_dims), order = 'C')
     elif order == 'R':
-        return np.reshape(input, shape, order = 'R')
+        return np.reshape(input, (_dims,_dims), order = 'R')
     else:
         raise TypeError("Order of inverse-vectorization must be convert " \
         "vector into matrix columns (C) or rows (R).")

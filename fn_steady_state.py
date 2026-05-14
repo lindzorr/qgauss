@@ -40,11 +40,11 @@ def moment_steadystate(L0: QGsuper,
         ∂W(r;t)/∂t = (-G - (∂/∂r).F - r.D 
                        + ½*(∂/∂r).C.(∂/∂r) - ½*r.B.r - (∂/∂r).A.r) W(r;t)
     """
-    _A = L0.wigner_2nd_deriv_var
-    _B = L0.wigner_2nd_var
-    _C = L0.wigner_2nd_deriv
-    _D = L0.wigner_1st_var
-    _F = L0.wigner_1st_deriv
+    _A = L0.wigner_2nd_rdr
+    _B = L0.wigner_2nd_rr
+    _C = L0.wigner_2nd_drdr
+    _D = L0.wigner_1st_r
+    _F = L0.wigner_1st_dr
 
     # Check if system is stable before proceeding
     if not all(np.real(x) < 0 for x in eigvals(_A)):
@@ -243,8 +243,8 @@ def _backaction_steadystate_solver(L0: QGsuper,
     rhof = moment_steadystate(L0, tol)
 
     # Generate arrays from the L0 QGsuper
-    _B = L0.wigner_2nd_var
-    _D = L0.wigner_1st_var
+    _B = L0.wigner_2nd_rr
+    _D = L0.wigner_1st_r
     _G = L0.wigner_0th[0]
 
     # Calculate the parasitic and measurement induced parts of the backaction

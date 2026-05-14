@@ -129,9 +129,9 @@ def lindblad_timeevolve(LV: QGsuper,
         raise ValueError("CV component of state and Lindbladian have different dimensions.")
     
     # Construct elements of the open-system transformation
-    _A = LV.wigner_2nd_deriv_var
-    _C = LV.wigner_2nd_deriv
-    _f = LV.wigner_1st_deriv
+    _A = LV.wigner_2nd_rdr
+    _C = LV.wigner_2nd_drdr
+    _f = LV.wigner_1st_dr
     _S = expm(t*_A)
     _d = t * expm_int(t*_A) @ _f
     _V = vec_to_mat(t * expm_int(t*(np.kron(_A, np.eye(2*LV.dims_cvs)) 
@@ -244,21 +244,21 @@ def moment_timeevolve(L0: QGsuper = None,
         _F0 = np.zeros(rho0.shape_1st)
         _G0 = np.zeros(rho0.shape_0th)
     else:
-        _A0 = L0.wigner_2nd_deriv_var
-        _B0 = L0.wigner_2nd_var
-        _C0 = L0.wigner_2nd_deriv
-        _D0 = L0.wigner_1st_var
-        _F0 = L0.wigner_1st_deriv
+        _A0 = L0.wigner_2nd_rdr
+        _B0 = L0.wigner_2nd_rr
+        _C0 = L0.wigner_2nd_drdr
+        _D0 = L0.wigner_1st_r
+        _F0 = L0.wigner_1st_dr
         _G0 = L0.wigner_0th
 
     if not Lt:
         _At, _Bt, _Ct, _Dt, _Ft, _Gt = [], [], [], [], [], []
     else:
-        _At = _tdep_super_array(Lt, 'wigner_2nd_deriv_var', _tol)
-        _Bt = _tdep_super_array(Lt, 'wigner_2nd_var', _tol)
-        _Ct = _tdep_super_array(Lt, 'wigner_2nd_deriv', _tol)
-        _Dt = _tdep_super_array(Lt, 'wigner_1st_var', _tol)
-        _Ft = _tdep_super_array(Lt, 'wigner_1st_deriv', _tol)
+        _At = _tdep_super_array(Lt, 'wigner_2nd_rdr', _tol)
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _tol)
+        _Ct = _tdep_super_array(Lt, 'wigner_2nd_drdr', _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _tol)
+        _Ft = _tdep_super_array(Lt, 'wigner_1st_dr', _tol)
         _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
 
     # Check if dynamics of the covariances and means do not preverse the norm of 
@@ -590,15 +590,15 @@ def _backaction_timeevolve_solver(L0: QGsuper,
         _D0 = np.zeros(rho0.shape_1st)
         _G0 = np.zeros(rho0.shape_0th)
     else:
-        _B0 = L0.wigner_2nd_var
-        _D0 = L0.wigner_1st_var
+        _B0 = L0.wigner_2nd_rr
+        _D0 = L0.wigner_1st_r
         _G0 = L0.wigner_0th
 
     if not Lt:
         _Bt, _Dt, _Gt = [], [], []
     else:
-        _Bt = _tdep_super_array(Lt, 'wigner_2nd_var', _tol)
-        _Dt = _tdep_super_array(Lt, 'wigner_1st_var', _tol)
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _tol)
         _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
 
     ba_norm = np.empty([len(tlist)], dtype=complex)    

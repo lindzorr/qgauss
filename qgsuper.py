@@ -65,12 +65,12 @@ class QGsuper(object):
     The arrays in the above PDE are stored in the "wigner" proprties of the 
     QGsuper class, and are computed from the "data" arrays. The arrays are 
     defined analagously to the data arrays as:
-        · wigner_2nd_deriv_var[l,m,j,k] : A_jk (∂/∂r_j)*r_k*(S_l)*ρ*(S_m)
-        · wigner_2nd_var[l,m,j,k]       : B_jk (r_j*r_k)*(S_l)*ρ*(S_m)
-        · wigner_2nd_deriv[l,m,j,k]     : C_jk (∂/∂r_j)*(∂/∂r_k)*(S_l)*ρ*(S_m)
-        · wigner_1st_var[l,m,j]         : D_j  r_j*(S_l)*ρ*(S_m)
-        · wigner_1st_deriv[l,m,j]       : F_j  (∂/∂r_j)*(S_l)*ρ*(S_m)
-        · wigner_0th[l,m]               : G    (S_l)*ρ*(S_m)
+        · wigner_2nd_der_var[l,m,j,k] : A_jk (∂/∂r_j)*r_k*(S_l)*ρ*(S_m)
+        · wigner_2nd_var_var[l,m,j,k] : B_jk (r_j*r_k)*(S_l)*ρ*(S_m)
+        · wigner_2nd_der_der[l,m,j,k] : C_jk (∂/∂r_j)*(∂/∂r_k)*(S_l)*ρ*(S_m)
+        · wigner_1st_var[l,m,j]       : D_j  r_j*(S_l)*ρ*(S_m)
+        · wigner_1st_der[l,m,j]       : F_j  (∂/∂r_j)*(S_l)*ρ*(S_m)
+        · wigner_0th[l,m]             : G    (S_l)*ρ*(S_m)
     Note, due to this definition, the dynamics of W_jk(r;t) maybe depend on all 
     other components of W_T, depending on the form the superoperator. The 
     resulting superoperator may therefore not yield a Gaussian state when 
@@ -126,26 +126,22 @@ class QGsuper(object):
         Tensor of numbers containing the coefficients for the terms which have 
         no dependence on the quadrature operators. This component is the usual 
         vectorized supererator for finite-level systems.
-    wigner_2nd_deriv_var : array
+    wigner_2nd_rdr : array
         Tensor of 2D arrays containing PDE coefficients which are first order 
         in the quadrature derivative, (∂/∂r_j), and first order in the 
         quadrature variables, r_k, represented as the array A_jk*S_l*ρ*S_m.
-    wigner_2nd_var : array
+    wigner_2nd_rr : array
         Tensor of 2D arrays containing PDE coefficients which are second order 
-        in the quadrature variables, r_j*r_k,
-        represented as the array B_jk*S_l*ρ*S_m.
-    wigner_2nd_deriv : array
+        in the quadrature variables, r_j*r_k, represented as the array B_jk*S_l*ρ*S_m.
+    wigner_2nd_drdr : array
         Tensor of 2D arrays containing PDE coefficients which are second order 
-        in the quadrature derivative 
-        (∂/∂r_j)*(∂/∂r_k), represented as the array C_jk*S_l*ρ*S_m.
-    wigner_1st_var : array
-        Tensor of 1D arrays containing PDE coefficients which are first order 
-        in the quadrature variable, r_j,
-        represented as the array D_j*S_l*ρ*S_m.
+        in the quadrature derivative (∂/∂r_j)*(∂/∂r_k), represented as the array C_jk*S_l*ρ*S_m.
     wigner_1st_r : array
         Tensor of 1D arrays containing PDE coefficients which are first order 
-        in the quadrature derivatives, (∂/∂r_j),
-        represented as the array F_j*S_l*ρ*S_m.
+        in the quadrature variable, r_j, represented as the array D_j*S_l*ρ*S_m.
+    wigner_1st_dr : array
+        Tensor of 1D arrays containing PDE coefficients which are first order 
+        in the quadrature derivatives, (∂/∂r_j), represented as the array F_j*S_l*ρ*S_m.
     wigner_0th : array
         Tensor of numbers containing PDE coefficients which have no dependence 
         on quadrature derivatives or variable.
@@ -392,7 +388,16 @@ class QGsuper(object):
                 'data_quad_jump': 'data_2nd_m',
                 'data_lin_left': 'data_1st_l', 
                 'data_lin_right': 'data_1st_r', 
-                'data_const': 'data_0th'}
+                'data_const': 'data_0th',
+                'drift_mat': 'wigner_2nd_rdr',
+                'dyn_mat': 'wigner_2nd_rdr',
+                'disp_mat': 'wigner_2nd_rr',
+                'diff_mat': 'wigner_2nd_drdr',
+                'noise_mat': 'wigner_2nd_drdr',
+                'longit_vec': 'wigner_1st_r',
+                'drive_vec': 'wigner_1st_dr',
+                'source_term': 'wigner_0th'
+                }
     
     def __getattr__(self, name):
         if name in self._aliases:
@@ -407,7 +412,7 @@ class QGsuper(object):
             super().__setattr__(name, data)
 
     @cached_property
-    def wigner_2nd_deriv_var(self) -> npt.NDArray:
+    def wigner_2nd_rdr(self) -> npt.NDArray:
         # Drift matrix, system dynamics matrix
         if self.isfls:
             _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
@@ -423,9 +428,8 @@ class QGsuper(object):
             return (1j/2)*self.symform @ _data
     
     @cached_property
-    def wigner_2nd_var(self) -> npt.NDArray:
-        # Riccati coupling/feedback matrix, information-gain‑matrix, measurement‑error‑weight, trap/potential stiffness
-        # quadratic / nonlinear coupling, gain or feedback matrix, Measurement‑based/feedback control
+    def wigner_2nd_rr(self) -> npt.NDArray:
+        # Riccati coupling/feedback matrix, dispersive coupling matrix
         if self.isfls:
             return (-(1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
                     -(1/2)*(self.data_2nd_r + self.data_2nd_r.transpose([0,1,3,2]))
@@ -436,7 +440,7 @@ class QGsuper(object):
                     -(self.data_2nd_m + self.data_2nd_m.T))
         
     @cached_property
-    def wigner_2nd_deriv(self) -> npt.NDArray:
+    def wigner_2nd_drdr(self) -> npt.NDArray:
         # Diffusion matrix, noise matrix
         if self.isfls:
             _data = ((1/2)*(self.data_2nd_l + self.data_2nd_l.transpose([0,1,3,2]))
@@ -453,15 +457,13 @@ class QGsuper(object):
             return (1/4)*self.symform @ _data @ self.symform
     
     @cached_property
-    def wigner_1st_var(self) -> npt.NDArray:
-        # Restoring‑force coefficient vector, linear-damping/decay rate vector, 
-        # measurement / feedback term, measurement‑induced kick, measurement residual
+    def wigner_1st_r(self) -> npt.NDArray:
+        # Restoring‑force vector, linear-damping vector, longitudinal vector
         return -(self.data_1st_l + self.data_1st_r)
 
     @cached_property
-    def wigner_1st_deriv(self) -> npt.NDArray:
-        # Friction vector, drift‑shift coefficient vector, 
-        # displacement / driving vector, forcing term, affine drift / exogenous input
+    def wigner_1st_dr(self) -> npt.NDArray:
+        # Forcing vector, driving vector, displacement vector
         _data = self.data_1st_l - self.data_1st_r 
         if self.isfls:  
             return np.einsum("jk,lmj->lmk",
@@ -472,7 +474,7 @@ class QGsuper(object):
         
     @cached_property
     def wigner_0th(self) -> npt.NDArray:
-        # Decay term, sink term, decay rate of the state norm, loss rate
+        # Decay term, source/sink term, decay rate of the state norm, loss rate
         _data = (1/2)*(self.data_2nd_l + self.data_2nd_r) - self.data_2nd_m
         if self.isfls:
             return (-self.data_0th 
