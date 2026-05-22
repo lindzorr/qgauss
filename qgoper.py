@@ -14,10 +14,11 @@ class QGoper(object):
     """
     ---- Structure ----
     A class for representing operators acting on combined continuous variable 
-    system (CVS) and finite-level systems (FLS). The CVS is restricted to be at 
-    most a quadratic/bilinear function of the quadrature operators, to ensure 
-    that the dynamics preserve the Gaussian nature of the CVS component of the 
-    total state. Any generic quadrature operator "Q" may be written as follows:
+    systems (CVS) and finite-level systems (FLS). The CVS part of the operator 
+    is restricted to be at most a quadratic/bilinear function of the quadrature 
+    operators, to ensure that the dynamics preserve the Gaussian nature of the 
+    CVS component of the total state. Any generic quadrature operator "Q" may 
+    be written as follows:
         Q = ½r.O(2).r + r.O(1) + O(0)
     where r is a vector of quadrature operators, herein assumed to take the 
     following form,

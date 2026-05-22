@@ -563,12 +563,12 @@ class QGsuper(object):
  
     @cached_property
     def is2nd(self) -> bool:
-        if ((QGsuper._iszero(self.data_2nd_l) or
-             QGsuper._iszero(self.data_2nd_r) or
+        if ((QGsuper._iszero(self.data_2nd_l) and
+             QGsuper._iszero(self.data_2nd_r) and
              QGsuper._iszero(self.data_2nd_m))
              or
-            (self.data_2nd_l.size == 0 or
-             self.data_2nd_r.size == 0 or
+            (self.data_2nd_l.size == 0 and
+             self.data_2nd_r.size == 0 and
              self.data_2nd_m.size == 0)
            ):
             return False
@@ -577,10 +577,10 @@ class QGsuper(object):
     
     @cached_property
     def is1st(self) -> bool:
-        if ((QGsuper._iszero(self.data_1st_l) or
+        if ((QGsuper._iszero(self.data_1st_l) and
              QGsuper._iszero(self.data_1st_r))
              or
-            (self.data_1st_l.size == 0 or
+            (self.data_1st_l.size == 0 and
              self.data_1st_r.size == 0)
            ):
             return False
@@ -624,19 +624,13 @@ class QGsuper(object):
         else:
             j = row*np.prod(self.dims_fls[0][0]) + col
 
-        if (all([np.any(np.abs(self.data_2nd_l[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j]) and
-            all([np.any(np.abs(self.data_2nd_r[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j]) and
-            all([np.any(np.abs(self.data_2nd_m[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j]) and
-            all([np.any(np.abs(self.data_1st_l[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j]) and
-            all([np.any(np.abs(self.data_1st_r[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j]) and
-            all([np.any(np.abs(self.data_0th[j,k]) < qgauss.settings.atol) 
-                 for k in range(rank) if k != j])
-            ):
+        if (all([QGsuper._iszero(self.data_2nd_l[j,k]) for k in range(rank) if k != j]) and
+            all([QGsuper._iszero(self.data_2nd_r[j,k]) for k in range(rank) if k != j]) and
+            all([QGsuper._iszero(self.data_2nd_m[j,k]) for k in range(rank) if k != j]) and
+            all([QGsuper._iszero(self.data_1st_l[j,k]) for k in range(rank) if k != j]) and
+            all([QGsuper._iszero(self.data_1st_r[j,k]) for k in range(rank) if k != j]) and
+            all([QGsuper._iszero(self.data_0th[j,k]) for k in range(rank) if k != j])
+           ):
             return True
         else:
             return False
