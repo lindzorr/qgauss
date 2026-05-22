@@ -49,9 +49,9 @@ def expect(oper: QGoper,
     # is integrable
     if state.iscvs and state.isintegrable:
         if not state.isfls:
-            return _expect_cv(state, oper)
+            return _expect_cv(oper, state)
         elif state.isfls:
-            return sum(_expect_cv(state[j,k], oper[k,j])
+            return sum(_expect_cv(oper[k,j], state[j,k])
                        for j,k in zip(np.prod(state.dims_fls[0]),
                                       np.prod(state.dims_fls[1])))
         else:
@@ -59,7 +59,9 @@ def expect(oper: QGoper,
             "expectation value cannot be computed.")
 
 
-def _expect_cv(state: QGstate, oper: QGoper) -> complex:
+def _expect_cv(oper: QGoper, 
+               state: QGstate
+              ) -> complex:
     """ Private helper function for expect to calculate expectation value for 
     CV-only state and operator. """
     return state.data_0th*((1/2)*np.trace(state.data_2nd @ oper.data_2nd)
