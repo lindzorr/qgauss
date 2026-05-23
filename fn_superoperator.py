@@ -127,13 +127,14 @@ def sprepost(A: QGoper,
     # Superoperator representing pre/left and post-right-multiplication of a
     # state by an operator: A.ρ.B
     if (A.dims_cvs != B.dims_cvs) and (A.dims_fls != B.dims_fls).all():
-        raise ValueError("Inputs do not have identical dimensions")
+        raise ValueError("Inputs do not have identical dimensions.")
 
     if ((A.is2nd and B.is2nd) or
         (A.is2nd and B.is1st) or
         (A.is1st and B.is2nd)
         ):
-        raise ValueError("Inputs result in superoperator which is not Gaussian")
+        raise ValueError("Inputs result in superoperator which is beyond " \
+                    "quadratic/bilinear order in the quadrature operators.")
 
     if A.isfls and B.isfls:
         return QGsuper(data_2nd_l = \
