@@ -52,17 +52,17 @@ def tensor(*args) -> QGstate | QGoper:
     elif all(isinstance(x, QGstate) for x in args):
         return _tensor_state(args)
     else:
-        raise TypeError("All operands must be of same type: QGoper or QGstate.")
+        raise TypeError("All tensor arguments must be of same type: QGoper or QGstate.")
 
 
 def _tensor_oper(args) -> QGoper:
     """ Private helper function for "tensor" used to tensor QGopers. """
     # Check and raise error if an empty QGoper, one that is not iscv or isfls, 
     # is in args.
-    _arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
-    _arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
+    _arg_cvs = np.where([not x.iscvs for x in args])[0]
+    _arg_fls = np.where([not x.isfls for x in args])[0]
 
-    if len(set(_arg_cvs) & set(_arg_fls)) != 0:
+    if set(_arg_cvs) & set(_arg_fls):
         raise ValueError("Tensor product cannot be performed with empty QGopers.")
 
     # Check and raise error if tensor will return an operator which is greater 
@@ -72,13 +72,13 @@ def _tensor_oper(args) -> QGoper:
     # (2) Whether three or more operators are linear in quadrature basis
     # (3) If one operator is of quadratic/bilinear order, then no other 
     #     operator may be of linear order
-    _arg_2nd = np.where(tuple(map(lambda x: x.is2nd, args)))[0]
-    _arg_1st = np.where(tuple(map(lambda x: x.is1st, args)))[0]
+    _arg_2nd = np.where([x.is2nd for x in args])[0]
+    _arg_1st = np.where([x.is1st for x in args])[0]
 
     if ((len(_arg_2nd) >= 2) or 
         (len(_arg_1st) >= 3) or
-        (len(_arg_2nd) == 1 and len(_arg_1st) >= 1 and 
-         len(set(_arg_2nd) ^ set(_arg_1st)) > 0)
+        (len(_arg_2nd) == 1 and len(_arg_1st) >= 1 
+         and set(_arg_2nd) != set(_arg_1st))
        ):
         raise ValueError("Tensor product of QGopers produces result which is " \
         "beyond quadratic/bilinear order in the quadrature operators.")
@@ -242,10 +242,10 @@ def _tensor_state(args) -> QGstate:
     """ Private helper function for "tensor" used to tensor QGstates. """
     # Check and raise error if an empty QGstate, one that is not iscv or isfls, 
     # is in args.
-    _arg_cvs = np.where(tuple(map(lambda x: not x.iscvs, args)))[0]
-    _arg_fls = np.where(tuple(map(lambda x: not x.isfls, args)))[0]
+    _arg_cvs = np.where([not x.iscvs for x in args])[0]
+    _arg_fls = np.where([not x.isfls for x in args])[0]
 
-    if len(set(_arg_cvs) & set(_arg_fls)) != 0:
+    if set(_arg_cvs) & set(_arg_fls):
         raise ValueError("Tensor product cannot be performed with empty QGstates.")
     
     # Set data from first argument as initial data for output

@@ -5,20 +5,20 @@
 # The backaction rates that are returned by the qubit dephasing function could be used to calculate the Hamiltonian
 representing the induced frequency shift on the qubits, along with the effective collapse operators for the reduced
 qubit master equation.
-# Maybe allow for the conversion of Qutip Qobj's into the base Qgauss classes. Also, possibly convert the three base
-classes into Qobj.
-
+# Implement time-dependent class to handle time-dependent QGstates, QGopers, QGsupers, QGhles.
+# Function for stochastic master equations.
+# Implement functions to model homodyne, heterodyne, generaldyne, etc measurements.
 
 
 ###############
 ##  QGstate  ##
 ###############
-# To-consider: Maybe make is possible to switch between "Quadrature" and "Ladder" bases for the CVSS component? Maybe 
-also allow for different quadrature bases to be chosen, though this would require that the symplectic form also be 
-specified, since this would be required for certain operations. A con is that methods like the partial trace for the
-CV component become annoying to implement.
-# Implement magic methods. str and maybe repr, although unsure what should be displayed for str. Additional methods like
-iter, setitem, delitem. matmul and rmatmul as shorthand for added operations on the tensor structure.
+# For convenience, should it possible to switch between "Quadrature" and "Ladder" bases for the CVSS component?
+# Maybe also allow for different quadrature bases to be chosen. This would require that the symplectic form now be a
+a property which must be set. An argument against this is that methods like the partial trace for the CV component 
+become annoying to implement since quadratures for the same mode are no longer neighbours.
+# Implement magic methods. str and maybe repr. Additional methods like iter, setitem, delitem. matmul and rmatmul 
+as shorthand for added operations on the tensor structure.
 # Permute method to reorder FLS and CVS modes.
 # Other methods/attributes to implement:
 copy() Create a copy of QGstate
@@ -39,7 +39,7 @@ combine data_0th and data_fls.
 # The ordering of quadrature operators is fixed in the current implementation, so the commutation relations always take the form:
 	[r_j,r_k] = i*Ω_jk where the symplectic form is Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
 In order to allow for other orderings, it should be possible to submit a desired symplectic form Ω to represent alternate commutation relations.
-# {ermute method to reorder FLS and CVS modes.
+# Permute method to reorder FLS and CVS modes.
 # Implement some magic methods. str, repr, maybe iter, setitem, delitem. matmul and rmatmul as tensor shorthand.
 # Confirmation: The application of the canonical commutation relation is obtained using the following:
         ½r_j*r_k*O(2)_jk 
@@ -62,7 +62,7 @@ In order to allow for other orderings, it should be possible to submit a desired
 # Permute method to reorder FLS and CVS modes.
 # Should we automatically symmetrise data_2nd_l and data_2nd_r through commutation relations?
 # See if we can take a set of coefficients from a Wigner PDE and back-generate the superoperator.
-# Implement iscptp property
+# Implement iscptp (completely-positive and trace-preserving) property
 # Possibly combine 2nd and 1st order coefficients into unified structures, maybe something like
 	- data_2nd = [data_2nd_l,data_2nd_m,data_2nd_r]
 	- data_1st = [data_1st_l,data_1st_r]
