@@ -1,4 +1,5 @@
 import sys
+import warnings
 import numpy.typing as npt
 import qgauss
 import numpy as np
@@ -12,7 +13,7 @@ __all__ = ['measurement_rate']
 
 
 def measurement_rate(HLE: QGhle,
-                     pointers: str = None, 
+                     pointers: tuple[int,int] = None, 
                      meas_oper: QGoper = None, 
                      meas_mode: int | list[int] = None, 
                      noise_rest: float = 0, 
@@ -20,8 +21,8 @@ def measurement_rate(HLE: QGhle,
                     ):
     """
     ---- Procedure ----
-    Routine to calculate the steady-state measurement rate of some number of 
-    qubits, defined in terms of the SNR as:
+    Routine to calculate the steady-state measurement rate between pointer 
+    states of an FLS, defined in terms of the SNR as:
         measurement_rate = lim_t→∞ SNR^2(t)/t
                          = signal / noise.
     The measurement "signal" corresponds to the magnitude of the separation
@@ -33,18 +34,12 @@ def measurement_rate(HLE: QGhle,
         QGhle object representing the Heisenberg-Langevin equations, which 
         encodes the system Hamiltonian, system-environment Hamiltonian, and 
         input state of the environment.
-    pointers : string
+    pointers : tuple[int,int]
         The measurement rate is to be calculated between the pointer states for 
-        these two elements of the qubit density matrix. This is to be passed as 
-        string. For a single qubit example, 'g,e' represents the measurement 
-        rate between |g> and |e>, and will be the same as 'e,g'. For multiple 
-        qubits, multiple measurement rates may be defined between each pair of 
-        pointer states. For a two qubit system, examples include 'eg,ee' or 
-        'gg,ge'. The measurement rate will be zero if both pointer states are 
-        the same. Scales to arbitrary number of qubits. If no string is passed, 
+        these two elements of the FLS density matrix. The measurement rate will 
+        be zero if both pointer states are the same. If no argument is passed, 
         the measurement rate between all pairs are solved, including redundant 
-        pairs. Alternatively, bone can use the '1' and '0' in place of 'e' and 
-        'g', respectively.
+        pairs.
     meas_oper : QGoper
         The operator to be measured at the output of the system. This operator 
         acts only on the Hilbert space of the
@@ -70,22 +65,17 @@ def measurement_rate(HLE: QGhle,
         operator, not including noise_rest.
     """
     # ----------------------------------------------------------------------   
-    # No qubits are present, exit immediately
+    # Check if there is an FLS component is present, and raise error if not.
     if not HLE.isfls:
-        sys.exit("No qubit(s) coupled to system. Measurement rate cannot be defined.")
+        raise ValueError("No FLS coupled to system. Measurement rate cannot be defined.")
 
     # ----------------------------------------------------------------------
-    # Qubit pointer states are specified, solve the corresponding 
+    # FLS pointer states are specified, solve the corresponding 
     # measurement rate.
     elif HLE.isfls and pointers is not None:
-        # Select index for the pointer state
-        _qbinary = pointers.replace('e', '1').replace('g', '0')
-        _q_A = np.prod(HLE.dims_fls[0]) - int(_qbinary.split(',')[0],2) - 1
-        _q_B = np.prod(HLE.dims_fls[1]) - int(_qbinary.split(',')[1],2) - 1
-
         # Generate the output states of the system
-        _pointer_A = HLE.output_env(freq = freq, index = _q_A)
-        _pointer_B = HLE.output_env(freq = freq, index = _q_B)
+        _pointer_A = HLE.output_env(freq = freq, index = pointers[0])
+        _pointer_B = HLE.output_env(freq = freq, index = pointers[1])
 
         (meas_rate, meas_signal, meas_noise) = \
             _measurement_rate_solver(pointer_A = _pointer_A, 
@@ -95,7 +85,7 @@ def measurement_rate(HLE: QGhle,
                                      noise_rest = noise_rest)
         
     # ----------------------------------------------------------------------
-    # No qubit pointer states is specified, solve for all measurment rates
+    # No FLS pointer states is specified, solve for all measurment rates
     elif HLE.isfls and pointers is None:
         _row_total = np.prod(HLE.dims_fls[0])
         _col_total = np.prod(HLE.dims_fls[1])
@@ -104,12 +94,12 @@ def measurement_rate(HLE: QGhle,
         meas_noise = np.empty([_row_total,_col_total])
         meas_rate = np.empty([_row_total,_col_total])
 
-        for _q_A in range(0,_row_total):
-            for _q_B in range(0,_col_total):
-                _pointer_A = HLE.output_env(freq = freq, index = _q_A)
-                _pointer_B = HLE.output_env(freq = freq, index = _q_B)
+        for _row in range(0,_row_total):
+            for _col in range(0,_col_total):
+                _pointer_A = HLE.output_env(freq = freq, index = _row)
+                _pointer_B = HLE.output_env(freq = freq, index = _col)
 
-                (meas_rate[_q_A,_q_B], meas_signal[_q_A,_q_B], meas_noise[_q_A,_q_B]) = \
+                (meas_rate[_row,_col], meas_signal[_row,_col], meas_noise[_row,_col]) = \
                     _measurement_rate_solver(pointer_A = _pointer_A,
                                              pointer_B = _pointer_B, 
                                              meas_oper = meas_oper, 
@@ -227,7 +217,9 @@ def _optimum_measurement_operator(pointer_A: QGstate,
 
     if all([w == 0 for w in np.abs(_weights)]):
         # If all weights are zero, then no operator is optimal. 
-        # Return the zero operator.
+        # Return the zero operator and warn the use.
+        warnings.warn("No optimal measurement operator found, returning the " \
+                      "zero operator. Measurement rate will be ill-defined.")
         meas_oper = QGoper(dims_cvs = _dims_env)
     else:
         meas_oper = QGoper(data_1st = _weights / np.sqrt(np.sum(_weights**2)),

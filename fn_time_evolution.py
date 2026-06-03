@@ -1,10 +1,11 @@
-import sys
+import warnings
 from typing import Callable
 import numpy.typing as npt
 import qgauss
 import numpy as np
 from scipy.linalg import expm
 from scipy.integrate import solve_ivp
+from scipy.optimize import fminbound
 
 from .qgstate import QGstate
 from .qgoper import QGoper
@@ -254,12 +255,19 @@ def moment_timeevolve(L0: QGsuper = None,
     if not Lt:
         _At, _Bt, _Ct, _Dt, _Ft, _Gt = [], [], [], [], [], []
     else:
-        _At = _tdep_super_array(Lt, 'wigner_2nd_rdr', _tol)
-        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _tol)
-        _Ct = _tdep_super_array(Lt, 'wigner_2nd_drdr', _tol)
-        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _tol)
-        _Ft = _tdep_super_array(Lt, 'wigner_1st_dr', _tol)
-        _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
+        # Find maximum magnitude element of the time-dependent functions
+        _abs_max = [np.abs(x[1](fminbound(lambda t: -np.abs(x[1](t)), 
+                                          tlist[0], tlist[-1]))
+                          ) for x in Lt]
+        
+        # Generate lists of coefficient arrays and time-dependent functions
+        # which are large enough to not be excluded from dynamical simulation
+        _At = _tdep_super_array(Lt, 'wigner_2nd_rdr', _abs_max, _tol)
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _abs_max, _tol)
+        _Ct = _tdep_super_array(Lt, 'wigner_2nd_drdr', _abs_max, _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _abs_max, _tol)
+        _Ft = _tdep_super_array(Lt, 'wigner_1st_dr', _abs_max, _tol)
+        _Gt = _tdep_super_array(Lt, 'wigner_0th', _abs_max, _tol)
 
     # Check if dynamics of the covariances and means do not preverse the norm of 
     # the state. Pure dissipation is allowed  in the form of a non-zer Gt. The 
@@ -361,24 +369,24 @@ def backaction_timeevolve(L0: QGsuper = None,
                           Lt: list[tuple[QGsuper,Callable[[float], complex]]] = [],
                           rho0: QGstate = None,
                           tlist: list[float] | npt.NDArray[float] = [0,1],
-                          qubit: str = None,
+                          elem: tuple[int,int] = None,
                           **options
                          ):
     """
     ---- Procedure ----
-    Time domain solver for the backaction rates of a CV system on a qubit, or a 
-    CV system coupled to a system of qubits. The function will automatically 
+    Time domain solver for the backaction rates of a CV system on a specified
+    state in a larger finite-level system. The function will automatically 
     check if the evolution is Gaussian, and will raise an error if not. The 
-    component of the qubit state can be specified if the system has an FLS 
+    component of the FLS state can be specified if the system has an FLS 
     component, and if none is given, the backaction on every component will be 
-    solved. If the system is only CV, no qubit state need be specified. 
+    solved. If the system is only CV, no FLS state need be specified. 
     
     The function will return the total time-integrated dephasing and frequency 
     shift, along with instanteous values of the total dephasing and frequency 
     shift, along with the bare, measurement-induced, and parasitic dephasing 
     subcomponents. Each component of the backaction is stored in a single list, 
     where the first index corresponds to time. In case the rates for the entire 
-    qubit state are calculated, the data in the individual time-slices is of the 
+    FLS state are calculated, the data in the individual time-slices is of the 
     same format as the output of the steady-state function.
 
     ---- Parameters ----
@@ -401,14 +409,11 @@ def backaction_timeevolve(L0: QGsuper = None,
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. 
         Parts of numbers below this tolerance value are set to zero.
-    qubit : string
-        Element of qubit density matrix to solve passed as string, for example, 
-        'e,e' or 'g,e' for a single qubit, 'eg,ee' or 'gg,ge' etc, for a two 
-        qubit system. Scales to arbitrary number of qubits. If no string is 
-        passed the backaction on all elements are solved if the system has an 
+    elem : tuple[int,int]
+        Matrix element of FLS density matrix passed as a tuple. If no variable
+        is passed the backaction on all elements are solved if the system has an 
         FLS component, or just the steady-state of the CV system if there is 
-        not FLS. Alternatively, one can use the '1' and '0' in place of 'e' 
-        and 'g', respectively.    
+        no FLS component.    
     **options : 
         Options to be passed to the ODE solver. All options are listed below.
     atol : float
@@ -429,7 +434,7 @@ def backaction_timeevolve(L0: QGsuper = None,
         Steady-state total dephasing and frequency shift.
     ba_bare : list[complex] or list[array[complex]]
         Steady-state parasitic dephasing and frequency shift. Includes 
-        components from the innate qubit dynamics as well backation from the 
+        components from the innate FLS dynamics as well backation from the 
         CVS state which are independent of the first and second moments.
     ba_meas_ind : list[complex] or list[array[complex]]
         Steady-state measurement induced dephasing and frequency shift. 
@@ -462,7 +467,7 @@ def backaction_timeevolve(L0: QGsuper = None,
         rho0 = tensor(rho0, _ones)
 
     # ----------------------------------------------------------------------
-    # No qubits are present, solve the CV system
+    # No FLS component is present, solve the CV system
     if not L0.isfls and L0.iscvs:
         ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
             _backaction_timeevolve_solver(L0 = L0,
@@ -472,41 +477,35 @@ def backaction_timeevolve(L0: QGsuper = None,
                                           **options)
 
     # ----------------------------------------------------------------------
-    # Qubit state is specified, solve the corresponding CV component
-    elif L0.isfls and qubit is not None:
-        # Select index for the qubit state
-        _qbinary = qubit.replace('e', '1').replace('g', '0')
-        _qrow = np.prod(L0.dims_fls[0][0]) - int(_qbinary.split(',')[0],2) - 1
-        _qcol = np.prod(L0.dims_fls[0][1]) - int(_qbinary.split(',')[1],2) - 1
-        # Index count is backwards, 'e...e' is the 0th element and 'g...g' is last
-        _qindex = np.prod(L0.dims_fls[0][0])*_qcol + _qrow
+    # Element of the FLS state is specified, solve the corresponding CV component
+    elif L0.isfls and elem is not None:
+        # Index for the component of the superoperator which acts on the FLS state
+        _index = np.prod(L0.dims_fls[0][0])*elem[1] + elem[0]
 
-        # Check if spin-z Pauli operators are QND-observables, 
-        # and the dynamics Gaussian
-        if L0.issubgauss(_qindex) and all([x[0].issubgauss(_qindex) for x in Lt]):
+        # Check if system evolution preserves the Gaussian state
+        if L0.issubgauss(_index) and all([x[0].issubgauss(_index) for x in Lt]):
             pass
         else:
-            sys.exit("Equation of motion for the CV system is not Gaussian. " \
-            "The moment method cannot be used.")
+            warnings.warn("Evolution of the CV system is not Gaussian." \
+            "Terms which violate this assumption will be ignored.")
 
         ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
-            _backaction_timeevolve_solver(L0 = L0[_qindex,_qindex], 
-                                          Lt = [[x[0][_qindex,_qindex],x[1]] 
+            _backaction_timeevolve_solver(L0 = L0[_index,_index], 
+                                          Lt = [[x[0][_index,_index],x[1]] 
                                                 for x in Lt], 
-                                          rho0 = rho0[_qrow,_qcol],
+                                          rho0 = rho0[tuple(elem)],
                                           tlist = tlist, 
                                           **options)
         
     # ----------------------------------------------------------------------
-    # No qubit state is specified, solve for all components
-    elif L0.isfls and qubit is None:
-        # Check if spin-z Pauli operators are QND-oberservables,
-        # and the dynamics Gaussian
+    # No element of the FLS state is specified, solve for all components
+    elif L0.isfls and elem is None:
+        # Check if system evolution preserves the Gaussian state
         if L0.isgauss and all([x[0].isgauss for x in Lt]):
             pass
         else:
-            sys.exit("Equation of motion for the CV system is not Gaussian. " \
-            "The moment method cannot be used.")
+            warnings.warn("Evolution of the CV system is not Gaussian." \
+            "Terms which violate this assumption will be ignored.")
         
         _row_total = np.prod(L0.dims_fls[0][0])
         _col_total = np.prod(L0.dims_fls[0][1])
@@ -517,19 +516,19 @@ def backaction_timeevolve(L0: QGsuper = None,
         ba_meas_ind = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
         ba_para = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
 
-        for _qrow in range(0,_row_total):
-            for _qcol in range(0,_col_total):
-                _qindex = np.prod(L0.dims_fls[0][0])*_qcol + _qrow
+        for _row in range(0,_row_total):
+            for _col in range(0,_col_total):
+                _index = np.prod(L0.dims_fls[0][0])*_col + _row
 
-                (ba_norm[:,_qrow,_qcol], 
-                 ba_total[:,_qrow,_qcol], 
-                 ba_bare[:,_qrow,_qcol], 
-                 ba_meas_ind[:,_qrow,_qcol], 
-                 ba_para[:,_qrow,_qcol]) = \
-                    _backaction_timeevolve_solver(L0 = L0[_qindex,_qindex], 
-                                                  Lt = [[x[0][_qindex,_qindex],x[1]]
+                (ba_norm[:,_row,_col], 
+                 ba_total[:,_row,_col], 
+                 ba_bare[:,_row,_col], 
+                 ba_meas_ind[:,_row,_col], 
+                 ba_para[:,_row,_col]) = \
+                    _backaction_timeevolve_solver(L0 = L0[_index,_index], 
+                                                  Lt = [[x[0][_index,_index],x[1]]
                                                         for x in Lt], 
-                                                  rho0 = rho0[_qrow,_qcol], 
+                                                  rho0 = rho0[_row,_col], 
                                                   tlist = tlist, 
                                                   **options)
                 
@@ -597,9 +596,12 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     if not Lt:
         _Bt, _Dt, _Gt = [], [], []
     else:
-        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _tol)
-        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _tol)
-        _Gt = _tdep_super_array(Lt, 'wigner_0th', _tol)
+        _abs_max = [np.abs(x[1](fminbound(lambda t: -np.abs(x[1](t)), 
+                                tlist[0], tlist[-1]))
+                          ) for x in Lt]
+        _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _abs_max, _tol)
+        _Dt = _tdep_super_array(Lt, 'wigner_1st_r', _abs_max, _tol)
+        _Gt = _tdep_super_array(Lt, 'wigner_0th', _abs_max, _tol)
 
     ba_norm = np.empty([len(tlist)], dtype=complex)    
     ba_total = np.empty([len(tlist)], dtype=complex)
@@ -625,7 +627,16 @@ def _backaction_timeevolve_solver(L0: QGsuper,
 
 def _tdep_super_array(data : list[tuple[QGsuper,Callable[[float], complex]]],
                       prop : str,
+                      abs : list[float],
                       tol : float = qgauss.settings.atol
                      ) -> list[tuple[npt.NDArray,Callable[[float], complex]]]:
+    """
+    From a list of QGsuper elements and time-dependent functions, generate a 
+    list of arrays for the specified component "prop" of the Wigner Gaussian 
+    dynamics and time-dependent functions. Will ignore arrays where all elements 
+    multiplied by maximum absolute value of the time-dependent function, are 
+    below the tolerance, and are effectively zero.
+    """
     return [[getattr(x[0], prop), x[1]]
-            for x in data if not np.all(np.abs(getattr(x[0], prop)) < tol)]
+            for x,y in zip(data,abs)
+            if not np.all(np.abs(y*getattr(x[0], prop)) < tol)]
