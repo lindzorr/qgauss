@@ -1,6 +1,5 @@
 import numbers
 import numpy.typing as npt
-import qgauss
 import numpy as np
 
 from .qgstate import QGstate

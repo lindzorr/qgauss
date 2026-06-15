@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import warnings
 import numbers
 import numpy.typing as npt
 from functools import cached_property
 import qgauss
 import numpy as np
 
-from .qgstate import QGstate
-from .qgoper import QGoper
-from .qgsuper import QGsuper
+from ..core.qgstate import QGstate
+from ..core.qgoper import QGoper
+from ..core.qgsuper import QGsuper
+from ..calc.utilities import trim,trim_abs
 
 __all__ = ['QGhle']
 
@@ -416,11 +418,11 @@ class QGhle(object):
     @cached_property
     def lme(self) -> QGsuper:
         # Lindblad master equation in the form of a QGsuper, equivalent to
-        # the Heisenberg-Langevin equations and input-field correlations.
+        # the Heisenberg-Langevin equations with specified input-field correlations.
         if not (self.isherm and self.isgauss and self.input_env.isdensity):
-            raise AttributeError("No CPTP and Gaussian-state preserving " \
-            "Lindblad master equation can be associated with this set of " \
-            "Heisenberg-Langevin equations.")
+            warnings.warn("No CPTP and Gaussian-state preserving Lindblad " \
+                          "master equation can be associated with this set " \
+                          "Heisenberg-Langevin equations.")
         
         _l_sys = qgauss.coherent(self.h_sys)
         if self.isfls:
@@ -445,7 +447,13 @@ class QGhle(object):
                                dtype=complex)
             for x in range(0,np.prod(self.dims_fls[0])):
                 _rate,_jump = np.linalg.eigh(_diss[x,x])
-                _c_mat[x] = np.diag(np.sqrt(_rate)) @ _jump.conj().T
+                trim_abs(_rate), trim(_jump)
+                
+                if np.any(np.real(_rate) < 0):
+                    warnings.warn("System has negative decay rates. " \
+                                  "A CPTP Lindbladian cannot be constructed.")
+                
+                _c_mat[x] = np.diag(np.emath.sqrt(_rate)) @ _jump.conj().T
 
             _c_ops = [None for x in range(0,2*self.dims_cvs)]
             for x in range(0,2*self.dims_cvs):
@@ -463,14 +471,19 @@ class QGhle(object):
             _h_temp = self.symform_sys @ self.h_se @ self.input_env.data_1st
             _h_drv = QGoper(data_1st = _h_temp,
                             dims_cvs = self.dims_cvs)
-
+            
             _diss = (self.h_se
                      @ (self.input_env.data_2nd + (1j/2)*self.symform_env)
                      @ self.h_se.T)
             _rate,_jump = np.linalg.eigh(_diss)
             _jump = _jump.conj().T
+            trim_abs(_rate), trim(_jump)
 
-            _c_ops = [QGoper(data_1st = np.sqrt(_rate[x])*_jump[x],
+            if np.any(np.real(_rate) < 0):
+                warnings.warn("System has negative decay rates. " \
+                              "A CPTP Lindbladian cannot be constructed.")
+                
+            _c_ops = [QGoper(data_1st = np.emath.sqrt(_rate[x])*_jump[x],
                              dims_cvs = self.dims_cvs)
                       for x in range(0,len(_rate))]
 
@@ -586,6 +599,8 @@ class QGhle(object):
                       + (1/2)*(self.symform_sys @ self.h_se[index,index]
                                @ self.symform_env @ self.h_se[index,index].T))
                       for x in range(0,np.prod(self.dims_fls[0]))]
+                QGhle._isstable(_A)
+
                 return [(- self.symform_env
                          @ self.h_se[x,x].T
                          @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs))
@@ -597,6 +612,8 @@ class QGhle(object):
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
                       + (1/2)*(self.symform_sys @ self.h_se[index,index]
                                @ self.symform_env @ self.h_se[index,index].T))
+                QGhle._isstable(_A)
+
                 return (- self.symform_env
                         @ self.h_se[index,index].T
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs))
@@ -607,6 +624,8 @@ class QGhle(object):
             _A = (self.symform_sys @ self.h_sys.data_2nd
                   + (1/2)*(self.symform_sys @ self.h_se
                            @ self.symform_env @ self.h_se.T))
+            QGhle._isstable(_A)
+
             return (- self.symform_env
                     @ self.h_se.T
                     @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs))
@@ -628,6 +647,8 @@ class QGhle(object):
                       + (1/2)*(self.symform_sys @ self.h_se[x,x]
                                @ self.symform_env @ self.h_se[x,x].T))
                       for x in range(0,np.prod(self.dims_fls[0]))]
+                QGhle._isstable(_A)
+
                 return [(- self.symform_env
                         @ self.h_se[x,x].T
                         @ np.linalg.inv(_A[x] + 1j*freq*np.identity(2*self.dims_cvs)))
@@ -636,6 +657,8 @@ class QGhle(object):
                 _A = (self.symform_sys @ self.h_sys.data_2nd[index,index]
                       + (1/2)*(self.symform_sys @ self.h_se[index,index]
                                @ self.symform_env @ self.h_se[index,index].T))
+                QGhle._isstable(_A)
+
                 return (- self.symform_env
                         @ self.h_se[index,index].T
                         @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
@@ -643,6 +666,8 @@ class QGhle(object):
             _A = (self.symform_sys @ self.h_sys.data_2nd
                   + (1/2)*(self.symform_sys @ self.h_se
                            @ self.symform_env @ self.h_se.T))
+            QGhle._isstable(_A)
+            
             return (- self.symform_env
                     @ self.h_se.T
                     @ np.linalg.inv(_A + 1j*freq*np.identity(2*self.dims_cvs)))
@@ -727,14 +752,14 @@ class QGhle(object):
     def __getitem__(self, index) -> QGhle:
         # Grab CV elements from self at index in the FLS component
         # and return a QGhle with a CV component only
-        if self.isfls and self.iscvs:
+        if self.isfls:
             return QGhle(h_sys = self.h_sys[index],
                          h_sys_env = self.h_sys_env[index],
                          input_env = self.input_env,
                          dims_cvs = self.dims_cvs,
                          dims_env = self.dims_env)
         else:
-            raise ValueError("QGhle requires an FLS and CV component to " \
+            raise ValueError("QGhle requires an FLS component to " \
             "use this method. Access QGhle data arrays individually if " \
             "specific elements are required.")
         
@@ -746,3 +771,11 @@ class QGhle(object):
         self.h_sys.tidyup()
         self.h_sys_env.tidyup()
         self.input_env.tidyup()
+
+    @staticmethod
+    def _isstable(data: npt.NDArray):
+        if np.any(np.real(np.linalg.eigvals(data)) >= 0):
+            warnings.warn("System has no steady-state solution. " \
+            "Program will proceed, but results will not be physically valid.")
+        else:
+            pass

@@ -7,11 +7,11 @@ from scipy.linalg import expm
 from scipy.integrate import solve_ivp
 from scipy.optimize import fminbound
 
-from .qgstate import QGstate
-from .qgoper import QGoper
-from .qgsuper import QGsuper
-from .fn_tensor import tensor
-from .fn_utilities import *
+from ..core.qgstate import QGstate
+from ..core.qgoper import QGoper
+from ..core.qgsuper import QGsuper
+from ..core.tensor import tensor
+from ..calc.utilities import *
 
 __all__ = ['unitary_timeevolve','lindblad_timeevolve',
            'moment_timeevolve','backaction_timeevolve']
@@ -270,7 +270,7 @@ def moment_timeevolve(L0: QGsuper = None,
         _Gt = _tdep_super_array(Lt, 'wigner_0th', _abs_max, _tol)
 
     # Check if dynamics of the covariances and means do not preverse the norm of 
-    # the state. Pure dissipation is allowed  in the form of a non-zer Gt. The 
+    # the state. Pure dissipation is allowed in the form of a non-zer Gt. The 
     # first section will solve the ODEs when the covariances and means are 
     # uncoupled, and the second case will solve them when they are coupled, and 
     # hence need to be handled simultaneously.
@@ -279,15 +279,19 @@ def moment_timeevolve(L0: QGsuper = None,
         and len(_Bt) == 0
         and len(_Dt) == 0
        ):
-        # Define functions to pass to solve_ivp
+        _id = np.identity(2*_dims)
+        _A0_vec = np.kron(_A0,_id) + np.kron(_id,_A0)
+        _At_vec = [[np.kron(x[0],_id) + np.kron(_id,x[0]), x[1]] for x in _At]
+        _C0_vec = mat_to_vec(_C0)
+        _Ct_vec = [[mat_to_vec(x[0]),x[1]] for x in _Ct]
+
         def _ode_func_cov(t,X):
-            # Function for the covariance to pass to solve_ivp, which requires 
-            # vectorization of the symmetric matrix.
+            # Function for the vectorized covariance to pass to solve_ivp. 
             #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T + C
-            _A = _A0 + sum([x[0]*x[1](t) for x in _At])
-            _C = _C0 + sum([x[0]*x[1](t) for x in _Ct])
-            _V = vec_to_symmat(X)
-            return symmat_to_vec(_A @ _V + _V @ _A.T + _C)
+            #-> d/dt vec(Σ(t)) = (I⊗A + A⊗I).vec(Σ(t)) + vec(C)
+            _A_vec = _A0_vec + sum([x[0]*x[1](t) for x in _At_vec])
+            _C_vec = _C0_vec + sum([x[0]*x[1](t) for x in _Ct_vec])
+            return _A_vec @ X + _C_vec
         
         def _ode_func_mean(t,X):
             # Function for the means to pass to solve_ivp.
@@ -304,7 +308,7 @@ def moment_timeevolve(L0: QGsuper = None,
         
         _Vsol = solve_ivp(fun = _ode_func_cov, 
                           t_span = (tlist[0],tlist[-1]), 
-                          y0 = _V0, 
+                          y0 = mat_to_vec(_V0), 
                           t_eval = tlist, 
                           **options)
         _msol = solve_ivp(fun = _ode_func_mean, 
@@ -318,7 +322,7 @@ def moment_timeevolve(L0: QGsuper = None,
                           t_eval = tlist, 
                           **options)
 
-        _Vt = [_Vsol.y[:,t] for t in range(0,len(tlist))]
+        _Vt = [vec_to_mat(_Vsol.y[:,t]) for t in range(0,len(tlist))]
         _mt = [_msol.y[:,t] for t in range(0,len(tlist))]
         _nt = [_nsol.y[:,t] for t in range(0,len(tlist))]
 
@@ -328,6 +332,13 @@ def moment_timeevolve(L0: QGsuper = None,
         #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T - Σ(t).B.Σ(t) + C
         #   dμ(t)/dt = (A - B.Σ(t)).μ(t) + F - Σ(t).D
         #   dn(t)/dt = -n(t)*(G + F.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
+
+        # Note: ODE for Σ(t) is not easily vectorized since it is non-linear.
+        # The only possible solution is to cast matrix equation as
+        #   d/dt [U(t) \\ V(t)] = [[A^T,-B],[-C,-A]].[U(t) \\ V(t)]
+        # and then use Σ(t) = V(t).U(t)^-1. This requires more mempory and the
+        # matrix inverse, which may be a problem if U(t) is nearly singular.
+
         def _ode_func_total(t,X):
             _A = _A0 + sum([x[0]*x[1](t) for x in _At])
             _B = _B0 + sum([x[0]*x[1](t) for x in _Bt])
@@ -335,13 +346,11 @@ def moment_timeevolve(L0: QGsuper = None,
             _F = _F0 + sum([x[0]*x[1](t) for x in _Ft])
             _D = _D0 + sum([x[0]*x[1](t) for x in _Dt])
             _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
-            # Split X into leading covariance matrix elements and trailing 
-            # elements for the mean.
+
             _XV = vec_to_symmat(X[0:_dims*(2*_dims+1)])
             _Xm = X[_dims*(2*_dims+1):_dims*(2*_dims+3)]
             _Xn = X[_dims*(2*_dims+3)]
-            # Perform matrix/vector operations, convert symmetric covariance 
-            # matrix back to vector, and append the means.
+
             return np.concatenate(
                 (symmat_to_vec(_A @ _XV + _XV @ _A.T - _XV @ _B @ _XV + _C),
                  (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
@@ -445,8 +454,7 @@ def backaction_timeevolve(L0: QGsuper = None,
         of this components arises when the CVS state has variances above vacuum,
         while the frequency shift is present even for the vacuum shift.
     """
-    # ----------------------------------------------------------------------
-    # Set options
+    # --------------------------------------------------------------------------
     _defaults = {'atol': qgauss.settings.atol, 
                  'rtol': qgauss.settings.rtol, 
                  'method': 'RK45'}
@@ -459,15 +467,15 @@ def backaction_timeevolve(L0: QGsuper = None,
                      dims_fls = Lt[0][0].dims_fls)
         
     # If rho0 has no FLS component, and the system is FLS, then create 
-    # a list of CVS states
+    # a list of CVS states.
     if L0.isfls and not rho0.isfls:
         _ones = QGstate(data_0th = np.ones((np.prod(L0.dims_fls[0][0]),
                                             np.prod(L0.dims_fls[0][1]))),
                         dims_fls = L0.dims_fls[0])
         rho0 = tensor(rho0, _ones)
 
-    # ----------------------------------------------------------------------
-    # No FLS component is present, solve the CV system
+    # --------------------------------------------------------------------------
+    # No FLS component is present, solve the CV system.
     if not L0.isfls and L0.iscvs:
         ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
             _backaction_timeevolve_solver(L0 = L0,
@@ -476,17 +484,15 @@ def backaction_timeevolve(L0: QGsuper = None,
                                           tlist = tlist,
                                           **options)
 
-    # ----------------------------------------------------------------------
-    # Element of the FLS state is specified, solve the corresponding CV component
+    # --------------------------------------------------------------------------
+    # Element of the FLS state is specified, solve the corresponding CV component.
     elif L0.isfls and elem is not None:
-        # Index for the component of the superoperator which acts on the FLS state
         _index = np.prod(L0.dims_fls[0][0])*elem[1] + elem[0]
 
-        # Check if system evolution preserves the Gaussian state
         if L0.issubgauss(_index) and all([x[0].issubgauss(_index) for x in Lt]):
             pass
         else:
-            warnings.warn("Evolution of the CV system is not Gaussian." \
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
 
         ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
@@ -497,14 +503,13 @@ def backaction_timeevolve(L0: QGsuper = None,
                                           tlist = tlist, 
                                           **options)
         
-    # ----------------------------------------------------------------------
-    # No element of the FLS state is specified, solve for all components
+    # --------------------------------------------------------------------------
+    # No element of the FLS state is specified, solve for all components.
     elif L0.isfls and elem is None:
-        # Check if system evolution preserves the Gaussian state
         if L0.isgauss and all([x[0].isgauss for x in Lt]):
             pass
         else:
-            warnings.warn("Evolution of the CV system is not Gaussian." \
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
         
         _row_total = np.prod(L0.dims_fls[0][0])
@@ -570,12 +575,12 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     ba_meas_ind : array[complex]
     ba_para : array[complex]
 
-    What is the better output format:
+    Which is the better output format:
     # -> tuple[list[complex],list[complex],list[complex],list[complex],list[complex]] (currently used)
     # -> list[tuple[complex,complex,complex,complex,complex]]
     """
     # Solve the dynamics of the moments of the initial state rho0 evolving under 
-    # the Lindbladian QGsuper L0 + Lt
+    # the Lindbladian QGsuper L0 + Lt.
     _rhot = moment_timeevolve(L0 = L0, 
                               Lt = Lt, 
                               rho0 = rho0, 
@@ -583,7 +588,6 @@ def _backaction_timeevolve_solver(L0: QGsuper,
                               **options)
     _tol = options['atol']
 
-    # Generate arrays from the QGsuper inputs L0 and Lt
     if L0 is None:
         _B0 = np.zeros(rho0.shape_2nd)
         _D0 = np.zeros(rho0.shape_1st)
@@ -609,14 +613,14 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     ba_meas_ind = np.empty([len(tlist)], dtype=complex)
     ba_para = np.empty([len(tlist)], dtype=complex)
 
-    # Calculate the parasitic and measurement induced parts of the backaction
+    # Calculate the parasitic and measurement induced parts of the backaction.
     for u in range(0,len(tlist)):
         _B = _B0 + sum([x[0]*x[1](tlist[u]) for x in _Bt])
         _D = _D0 + sum([x[0]*x[1](tlist[u]) for x in _Dt])
         _G = _G0 + sum([x[0]*x[1](tlist[u]) for x in _Gt])
 
-        ba_norm[u] = _rhot[u].data_0th / _rhot[0].data_0th
-        ba_bare[u] = _G
+        ba_norm[u] = _rhot[u].data_0th[0] / _rhot[0].data_0th[0]
+        ba_bare[u] = _G[0]
         ba_meas_ind[u] = (_rhot[u].data_1st @ _D 
                           + (1/2)*_rhot[u].data_1st @ _B @ _rhot[u].data_1st)
         ba_para[u] = (1/2)*np.trace(_B @ _rhot[u].data_2nd)

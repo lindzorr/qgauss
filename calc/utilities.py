@@ -47,9 +47,16 @@ def expm_int(X: npt.NDArray,
 def trim(input: npt.NDArray, 
          tol: float = qgauss.settings.tidyup_atol
          ) -> npt.NDArray:
-    """ Remove small real and imaginary terms from arrays. """
+    """ Remove small real and/or imaginary components terms from arrays. """
     np.real(input)[np.abs(np.real(input)) < tol] = 0
     np.imag(input)[np.abs(np.imag(input)) < tol] = 0
+
+
+def trim_abs(input: npt.NDArray,
+             tol: float = qgauss.settings.tidyup_atol
+             ) -> npt.NDArray:
+    """ Remove small terms from arrays. """
+    input[np.abs(input) < tol] = 0
 
 
 def mat_to_vec(input: npt.NDArray, 

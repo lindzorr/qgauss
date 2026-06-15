@@ -1,12 +1,11 @@
 import numpy.typing as npt
-import qgauss
 import numpy as np
 from scipy.linalg import expm
 
 from .qgstate import QGstate
 from .qgoper import QGoper
 from .qgsuper import QGsuper
-from .fn_utilities import *
+from ..calc.utilities import *
 
 __all__ = ['expect','commutator','ASp_transform']
 
