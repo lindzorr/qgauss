@@ -222,16 +222,15 @@ def moment_timeevolve(L0: QGsuper = None,
     rhot : list[QGstate]
         List of QGstates at the times indicated in tlist.
     """
-    # Set options
     _defaults = {'atol': qgauss.settings.atol,
                  'rtol': qgauss.settings.rtol, 
                  'method': 'RK45'}
     options = {**_defaults, **options}
     _tol = options['atol']
 
-    # Extract data from the initial state
+    # Extract moments from the initial state
     _dims = rho0.dims_cvs
-    _V0 = symmat_to_vec(rho0.data_2nd)
+    _V0 = rho0.data_2nd
     _m0 = rho0.data_1st
     _n0 = rho0.data_0th
 
@@ -356,7 +355,7 @@ def moment_timeevolve(L0: QGsuper = None,
                  (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
                  -_Xn*(_G + _F @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
 
-        _X0 = np.concatenate((_V0, _m0, _n0))
+        _X0 = np.concatenate((symmat_to_vec(_V0), _m0, _n0))
         _Xsol = solve_ivp(fun = _ode_func_total, 
                           t_span = (tlist[0],tlist[-1]), 
                           y0 = _X0, 
