@@ -78,7 +78,7 @@ def vec_to_mat(input: npt.NDArray,
               ) -> npt.NDArray:
     """ Inverse of the vectorization of a matrix, select 'C' for column 
     stacking and 'R' for row stacking. """
-    _dims = np.sqrt(len(input))
+    _dims = round(np.sqrt(len(input)))
     if order == 'C':
         return np.reshape(input, (_dims,_dims), order = 'C')
     elif order == 'R':

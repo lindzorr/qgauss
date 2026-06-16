@@ -161,12 +161,13 @@ def moment_timeevolve(L0: QGsuper = None,
                       Lt: list[tuple[QGsuper,Callable[[float], complex]]] = [],
                       rho0: QGstate = None,
                       tlist: list[float] | npt.NDArray[float] = [0,1],
+                      elem: tuple[int,int] = None,
                       **options
                      ):
     """
     ---- Procedure ----
-    Time-dependent solver for the steady-state for a corresponding CV system 
-    Liouvillian, which may be time-dependent. The function will output the CV 
+    Time-dependent solver for the moments of a state evolving under some
+    Liouvillian, which may be time-dependent. The function will output the 
     system state at every time specified in tlist. In case the total dynamics is 
     that of a true-quantum state (CPTP) then it is best that each QGsuper also 
     be CPTP. This check is currently performed on each element of LT, and will 
@@ -184,13 +185,12 @@ def moment_timeevolve(L0: QGsuper = None,
         LT = [[coherent(position()), lambda t: np.sqrt(2)*np.cos(np.pi*t/2)] , 
               [coherent(momentum()), lambda t: np.sqrt(2)*np.sin(np.pi*t/2)]]
            = [[coherent(create()+destroy()), lambda t: np.cos(np.pi*t/2)] , 
-              [coherent(1j*(create()-destroy())), lambda t: np.sin(np.pi*t/2)]],
+              [coherent(1j*(create()-destroy())), lambda t: np.sin(np.pi*t/2)]].
 
     ---- Parameters ----
     L0 : QGsuper
         Time-independent component of the total Lindbladian/Liouvillian. The 
-        Liouvillian need not describe the evolution of a true master equation. 
-        Must be CVS-only, and so contain no FLS component.
+        Liouvillian need not describe the evolution of a true master equation.
     Lt : list[tuple[QGsuper,function]]
         The time-dependent component(s) of the total Lindbladian/Liouvillian. 
         Must be passed as a list of two-element lists or tuples, where the first 
@@ -198,11 +198,16 @@ def moment_timeevolve(L0: QGsuper = None,
         the time-dependent coefficient. The function should therefore only 
         accept one argument for the time.
     rho0 : QGstate
-        Initial state for the system. Must be a CVS-only state.
+        Initial state for the system.
     tlist : list[float]
         List of time values at which to store solutions from the state evolution 
         solver. This must be sorted, and should contain the start and end times. 
         The default initial and final times are t=[0,1].
+    elem : tuple[int,int]
+        Matrix element of FLS density matrix passed as a tuple. If no variable
+        is passed the backaction on all elements are solved if the system has an 
+        FLS component, or just the steady-state of the CV system if there is 
+        no FLS component.  
     tol : float
         Set tolerance for the magnitude of real or imaginary parts of numbers. 
         Parts of numbers below this tolerance value are set to zero.
@@ -222,13 +227,142 @@ def moment_timeevolve(L0: QGsuper = None,
     rhot : list[QGstate]
         List of QGstates at the times indicated in tlist.
     """
+    # --------------------------------------------------------------------------
+    _defaults = {'atol': qgauss.settings.atol, 
+                 'rtol': qgauss.settings.rtol, 
+                 'method': 'RK45'}
+    options = {**_defaults, **options}
+
+    # Check and store properties of the total Liouvillian. 
+    # If L0 is None, then create an empty QQsuper.
+    if L0 is None and Lt != []:
+        L0 = QGsuper(dims_cvs = Lt[0][0].dims_cvs, 
+                     dims_fls = Lt[0][0].dims_fls)
+        
+    # If rho0 has no FLS component, and the system is FLS, then create 
+    # a list of CVS states.
+    if L0.isfls and not rho0.isfls:
+        _ones = QGstate(data_0th = np.ones((np.prod(L0.dims_fls[0][0]),
+                                            np.prod(L0.dims_fls[0][1]))),
+                        dims_fls = L0.dims_fls[0])
+        rho0 = tensor(rho0, _ones)
+
+    # --------------------------------------------------------------------------
+    # No FLS component is present, solve the CV system.
+    if not L0.isfls and L0.iscvs:
+        _Vt,_mt,_nt = _moment_timeevolve_solver(L0 = L0,
+                                                Lt = Lt,
+                                                rho0 = rho0,
+                                                tlist = tlist,
+                                                **options)
+
+    # --------------------------------------------------------------------------
+    # Element of the FLS state is specified, solve the corresponding CV component.
+    elif L0.isfls and elem is not None:
+        _index = np.prod(L0.dims_fls[0][0])*elem[1] + elem[0]
+
+        if L0.issubgauss(_index) and all([x[0].issubgauss(_index) for x in Lt]):
+            pass
+        else:
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
+            "Terms which violate this assumption will be ignored.")
+
+        _nt,_mt,_Vt = \
+        _moment_timeevolve_solver(L0 = L0[_index,_index],
+                                  Lt = [[x[0][_index,_index],x[1]]
+                                        for x in Lt],
+                                  rho0 = rho0[tuple(elem)],
+                                  tlist = tlist,
+                                  **options)
+        
+    # --------------------------------------------------------------------------
+    # No element of the FLS state is specified, solve for all components.
+    elif L0.isfls and elem is None:
+        if L0.isgauss and all([x[0].isgauss for x in Lt]):
+            pass
+        else:
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
+            "Terms which violate this assumption will be ignored.")
+        
+        _fls_row = np.prod(L0.dims_fls[0][0])
+        _fls_col = np.prod(L0.dims_fls[0][1])
+        _cvs_dim = 2*L0.dims_cvs
+
+        _Vt = np.empty([len(tlist),_fls_row,_fls_col,_cvs_dim,_cvs_dim], dtype=complex)
+        _mt = np.empty([len(tlist),_fls_row,_fls_col,_cvs_dim], dtype=complex)
+        _nt = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+
+        for _row in range(0,_fls_row):
+            for _col in range(0,_fls_col):
+                _index = np.prod(L0.dims_fls[0][0])*_col + _row
+
+                _nt[:,_row,_col], _mt[:,_row,_col], _Vt[:,_row,_col] = \
+                _moment_timeevolve_solver(L0 = L0[_index,_index],
+                                          Lt = [[x[0][_index,_index],x[1]]
+                                                for x in Lt],
+                                          rho0 = rho0[_row,_col],
+                                          tlist = tlist, 
+                                          **options)
+                
+    return [QGstate(data_2nd = _Vt[t],
+                    data_1st = _mt[t],
+                    data_0th = _nt[t],
+                    dims_cvs = L0.dims_cvs,
+                    dims_fls = L0.dims_fls[0])
+                    for t in range(0, len(tlist))]
+
+
+def _moment_timeevolve_solver(L0: QGsuper,
+                              Lt: list[tuple[QGsuper,Callable[[float], complex]]],
+                              rho0: QGstate,
+                              tlist: list[float] | npt.NDArray[float],
+                              **options
+                              ):
+    """
+    ---- Procedure ----
+    Helper function for the time-dependent solver. Converts the CVS-only 
+    components into systems of coupled ODEs, which are then solved.
+
+    ---- Parameters ----
+    L0 : QGsuper
+        Time-independent component of the total Lindbladian/Liouvillian.
+    Lt : list[tuple[QGsuper,function]]
+        The time-dependent component(s) of the total Lindbladian/Liouvillian.
+    rho0 : QGstate
+        Initial state for the system.
+    tlist : list[float]
+        List of time values at which to store solutions from the state evolution 
+        solver.
+    tol : float
+        Set tolerance for the magnitude of real or imaginary parts of numbers. 
+        Parts of numbers below this tolerance value are set to zero.
+    **options : 
+        Options to be passed to the ODE solver. All options are listed below.
+    atol : float
+        Absolute tolerance, default value is settings.atol.
+    rtol : float
+        Relative tolerance, default value is settings.rtol.
+    method : str
+        Integration method to be used by Scipy solve_ivp. Due to the data used 
+        here, only solvers which can handle complex values will work. The 
+        default is ‘RK45’. Other choices for explicit methods are ‘RK23’ and 
+        ‘DOP853’, while for implicit solvers the choice is ‘BDF’.
+
+    ---- Returns ----
+    cov : array[complex]
+        Time-dependent covariance matrix.
+    mean : array[complex]
+        Time-dependent vector of means.  
+    norm : array[complex]
+        Time-dependent value of the norm. 
+    """
     _defaults = {'atol': qgauss.settings.atol,
                  'rtol': qgauss.settings.rtol, 
                  'method': 'RK45'}
     options = {**_defaults, **options}
     _tol = options['atol']
 
-    # Extract moments from the initial state
+    # Extract moments from the initial state.
     _dims = rho0.dims_cvs
     _V0 = rho0.data_2nd
     _m0 = rho0.data_1st
@@ -254,13 +388,13 @@ def moment_timeevolve(L0: QGsuper = None,
     if not Lt:
         _At, _Bt, _Ct, _Dt, _Ft, _Gt = [], [], [], [], [], []
     else:
-        # Find maximum magnitude element of the time-dependent functions
+        # Find maximum magnitude element of the time-dependent functions.
         _abs_max = [np.abs(x[1](fminbound(lambda t: -np.abs(x[1](t)), 
                                           tlist[0], tlist[-1]))
                           ) for x in Lt]
         
         # Generate lists of coefficient arrays and time-dependent functions
-        # which are large enough to not be excluded from dynamical simulation
+        # which are large enough to not be excluded from dynamical simulation.
         _At = _tdep_super_array(Lt, 'wigner_2nd_rdr', _abs_max, _tol)
         _Bt = _tdep_super_array(Lt, 'wigner_2nd_rr', _abs_max, _tol)
         _Ct = _tdep_super_array(Lt, 'wigner_2nd_drdr', _abs_max, _tol)
@@ -362,15 +496,11 @@ def moment_timeevolve(L0: QGsuper = None,
                           t_eval = tlist, 
                           **options)
         
-        _Vt = [_Xsol.y[0:_dims*(2*_dims+1), t] for t in range(0,len(tlist))]
+        _Vt = [vec_to_symmat(_Xsol.y[0:_dims*(2*_dims+1), t]) for t in range(0,len(tlist))]
         _mt = [_Xsol.y[_dims*(2*_dims+1):_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
         _nt = [_Xsol.y[_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
 
-    return [QGstate(data_2nd = vec_to_symmat(_Vt[t]),
-                    data_1st = _mt[t],
-                    data_0th = _nt[t],
-                    dims_cvs = _dims)
-            for t in range(0, len(tlist))]
+    return _nt,_mt,_Vt
 
 
 def backaction_timeevolve(L0: QGsuper = None,
@@ -511,17 +641,17 @@ def backaction_timeevolve(L0: QGsuper = None,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
         
-        _row_total = np.prod(L0.dims_fls[0][0])
-        _col_total = np.prod(L0.dims_fls[0][1])
+        _fls_row = np.prod(L0.dims_fls[0][0])
+        _fls_col = np.prod(L0.dims_fls[0][1])
 
-        ba_norm = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
-        ba_total = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
-        ba_bare = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
-        ba_meas_ind = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
-        ba_para = np.empty([len(tlist),_row_total,_col_total], dtype=complex)
+        ba_norm = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        ba_total = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        ba_bare = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        ba_meas_ind = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        ba_para = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
 
-        for _row in range(0,_row_total):
-            for _col in range(0,_col_total):
+        for _row in range(0,_fls_row):
+            for _col in range(0,_fls_col):
                 _index = np.prod(L0.dims_fls[0][0])*_col + _row
 
                 (ba_norm[:,_row,_col], 
@@ -580,11 +710,11 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     """
     # Solve the dynamics of the moments of the initial state rho0 evolving under 
     # the Lindbladian QGsuper L0 + Lt.
-    _rhot = moment_timeevolve(L0 = L0, 
-                              Lt = Lt, 
-                              rho0 = rho0, 
-                              tlist = tlist, 
-                              **options)
+    _nt,_mt,_Vt = _moment_timeevolve_solver(L0 = L0,
+                                            Lt = Lt,
+                                            rho0 = rho0,
+                                            tlist = tlist,
+                                            **options)
     _tol = options['atol']
 
     if L0 is None:
@@ -618,11 +748,10 @@ def _backaction_timeevolve_solver(L0: QGsuper,
         _D = _D0 + sum([x[0]*x[1](tlist[u]) for x in _Dt])
         _G = _G0 + sum([x[0]*x[1](tlist[u]) for x in _Gt])
 
-        ba_norm[u] = _rhot[u].data_0th[0] / _rhot[0].data_0th[0]
+        ba_norm[u] = _nt[u] / _nt[0]
         ba_bare[u] = _G[0]
-        ba_meas_ind[u] = (_rhot[u].data_1st @ _D 
-                          + (1/2)*_rhot[u].data_1st @ _B @ _rhot[u].data_1st)
-        ba_para[u] = (1/2)*np.trace(_B @ _rhot[u].data_2nd)
+        ba_meas_ind[u] = _mt[u] @ _D + (1/2)*_mt[u] @ _B @ _mt[u]
+        ba_para[u] = (1/2)*np.trace(_B @ _Vt[u])
         ba_total[u] = ba_bare[u] + ba_meas_ind[u] + ba_para[u]
 
     return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para

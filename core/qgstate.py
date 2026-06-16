@@ -332,7 +332,7 @@ class QGstate(object):
             return setattr(self, self._aliases[name], data)
         else:
             super().__setattr__(name, data)
-
+    
     @property
     def dims_cvs(self) -> int:
         return self._dims_cvs

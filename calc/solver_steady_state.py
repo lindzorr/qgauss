@@ -11,12 +11,87 @@ __all__ = ['moment_steadystate','backaction_steadystate']
 
 
 def moment_steadystate(L0: QGsuper,
+                       elem: tuple[int,int] = None,
                        tol: float = qgauss.settings.atol
                       ) -> QGstate:
     """
-    Steady-state solver for the steady-state for a corresponding CV system 
-    Liouvillian, L0. The function will exit if it is found that no steady-state 
-    solution to L0 exists.
+    Returns the steady-state density operator for the Liouvillian, L0, or
+    for the sub-system superoperator if elem is specified.
+
+    ---- Parameters ----
+    L0 : QGsuper
+        System Lindbladian/Liouvillian. The Liouvillian need not describe the 
+        evolution of a true master equation.
+    elem : tuple[int,int]
+        Matrix element of FLS density matrix passed as a tuple. If no variable
+        is passed the entire steady-state density operator is solved if the
+        system has an FLS component, or just the steady-state of the CV system
+        if there is no FLS component.
+    tol : float
+        Set tolerance for the magnitude of real or imaginary parts of numbers. 
+        Parts of numbers below this tolerance value are set to zero.
+
+    ---- Returns ----
+    rhof : QGstate
+        Steady-state intracavity state associated with the input superoperator.
+    """
+    # --------------------------------------------------------------------------
+    # No CVS component is present, raise error.
+    if L0.isfls and not L0.iscvs:
+        raise ValueError("No CVS component coupled to the FLS component. " \
+                         "Steady-state moments cannot be defined.")
+    
+    # No FLS component is present, solve the CV system.
+    elif not L0.isfls and L0.iscvs:
+        norm,mean,cov = _moment_steadystate_solver(L0, tol)
+        
+    # --------------------------------------------------------------------------
+    # Element of the FLS state is specified, solve the corresponding CV component
+    elif L0.isfls and elem is not None:
+        _index = np.prod(L0.dims_fls[0][0])*elem[1] + elem[0]
+
+        if not L0.issubgauss(_index):
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
+            "Terms which violate this assumption will be ignored.")
+
+        norm,mean,cov = _moment_steadystate_solver(L0[_index,_index], tol)
+        
+    # --------------------------------------------------------------------------
+    # No element of the FLS state is specified, solve for all components.
+    elif L0.isfls and elem is None:
+        if not L0.isgauss:
+            warnings.warn("Evolution of the CV system is not Gaussian. " \
+            "Terms which violate this assumption will be ignored.")
+        
+        _fls_row = np.prod(L0.dims_fls[0][0])
+        _fls_col = np.prod(L0.dims_fls[0][1])
+        _cvs_dim = 2*L0.dims_cvs
+
+        cov = np.empty([_fls_row,_fls_col,_cvs_dim,_cvs_dim], dtype=complex)
+        mean = np.empty([_fls_row,_fls_col,_cvs_dim], dtype=complex)
+        norm = np.empty([_fls_row,_fls_col], dtype=complex)
+
+        for _row in range(0,_fls_row):
+            for _col in range(0,_fls_col): 
+                _index = np.prod(L0.dims_fls[0][0])*_col + _row
+            
+                norm[_row,_col],mean[_row,_col],cov[_row,_col] = \
+                    _moment_steadystate_solver(L0[_index,_index], tol)
+
+    return QGstate(data_2nd = cov,
+                   data_1st = mean,
+                   data_0th = norm,
+                   dims_cvs = L0.dims_cvs,
+                   dims_fls = L0.dims_fls[0])
+
+
+def _moment_steadystate_solver(L0: QGsuper,
+                               tol: float = qgauss.settings.atol
+                               ) -> QGstate:
+    """
+    Internal steady-state solver for the steady-state a corresponding CVS-only
+    systemLiouvillian, L0. The function warn the use if it is found that no
+    steady-state solution to L0 exists.
 
     ---- Parameters ----
     L0 : QGsuper
@@ -28,8 +103,12 @@ def moment_steadystate(L0: QGsuper,
         Parts of numbers below this tolerance value are set to zero.
 
     ---- Returns ----
-    rhof : QGstate
-        Steady-state intracavity state associated with the input superoperator.
+    cov : array[complex]
+        Steady-state covariance matrix.
+    mean : array[complex]
+        Steady-state vector of means.  
+    norm : complex
+        Steady-state value of the norm, either 0 or 1.  
     """
     # Generate arrays for the moment equations. These are the arrays obtained by
     # mapping the Liouvillian to a partial differential equation in the Wigner
@@ -51,8 +130,9 @@ def moment_steadystate(L0: QGsuper,
         if np.any(np.real(np.linalg.eigvals(_A)) >= 0):
             warnings.warn("System has no steady-state solution.")
 
-        _cov = solve_continuous_lyapunov(_A,-_C)
-        _mean = solve(_A,-_F)
+        cov = solve_continuous_lyapunov(_A,-_C)
+        mean = solve(_A,-_F)
+        norm = 1
 
     else:
         # Solver for the steady-state of a non-norm-preserving Liouvillian. This 
@@ -76,21 +156,19 @@ def moment_steadystate(L0: QGsuper,
             warnings.warn("Covariance matrix has no steady-state solution.")
 
         _soln = _evecs[:,_indices_stable]                           
-        _cov = (_soln[2*L0.dims_cvs:4*L0.dims_cvs,0:2*L0.dims_cvs] 
+        cov = (_soln[2*L0.dims_cvs:4*L0.dims_cvs,0:2*L0.dims_cvs] 
                 @ np.linalg.inv(_soln[0:2*L0.dims_cvs,0:2*L0.dims_cvs]))
         
-        if np.any(np.real(np.linalg.eigvals(_cov)) < 0):
+        if np.any(np.real(np.linalg.eigvals(cov)) < 0):
             warnings.warn("Solution for the covariance matrix is not positive-definite. " \
                           "Wigner function is not integrable.")
-        if np.any(np.real(np.linalg.eigvals(_A - _cov @ _B)) >= 0):
+        if np.any(np.real(np.linalg.eigvals(_A - cov @ _B)) >= 0):
             warnings.warn("Vector of means has no steady-state solution.")
 
-        _mean = solve(_A - _cov @ _B,-_F + _cov @ _D)
+        mean = solve(_A - cov @ _B,-_F + cov @ _D)
+        norm = 0
 
-    rhof = QGstate(data_2nd = _cov,
-                   data_1st = _mean,
-                   dims_cvs = L0.dims_cvs)
-    return rhof
+    return norm,mean,cov
 
 
 def backaction_steadystate(L0: QGsuper,
@@ -141,8 +219,13 @@ def backaction_steadystate(L0: QGsuper,
         while the frequency shift is present even for the vacuum shift.
     """
     # --------------------------------------------------------------------------
+    # No CVS component is present, raise error.
+    if L0.isfls and not L0.iscvs:
+        raise ValueError("No CVS component coupled to the FLS component. " \
+                         "Bakaction from the CVS component cannot be defined.")
+    
     # No FLS component is present, solve the CV system.
-    if not L0.isfls and L0.iscvs:
+    elif not L0.isfls and L0.iscvs:
         ba_total,ba_bare,ba_meas_ind,ba_para = \
             _backaction_steadystate_solver(L0, tol)
         
@@ -165,16 +248,16 @@ def backaction_steadystate(L0: QGsuper,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
         
-        _row_total = np.prod(L0.dims_fls[0][0])
-        _col_total = np.prod(L0.dims_fls[0][1])
+        _fls_row = np.prod(L0.dims_fls[0][0])
+        _fls_col = np.prod(L0.dims_fls[0][1])
 
-        ba_total = np.empty([_row_total,_col_total], dtype=complex)
-        ba_bare = np.empty([_row_total,_col_total], dtype=complex)
-        ba_meas_ind = np.empty([_row_total,_col_total], dtype=complex)
-        ba_para = np.empty([_row_total,_col_total], dtype=complex)
+        ba_total = np.empty([_fls_row,_fls_col], dtype=complex)
+        ba_bare = np.empty([_fls_row,_fls_col], dtype=complex)
+        ba_meas_ind = np.empty([_fls_row,_fls_col], dtype=complex)
+        ba_para = np.empty([_fls_row,_fls_col], dtype=complex)
 
-        for _row in range(0,_row_total):
-            for _col in range(0,_col_total): 
+        for _row in range(0,_fls_row):
+            for _col in range(0,_fls_col): 
                 _index = np.prod(L0.dims_fls[0][0])*_col + _row
             
                 (ba_total[_row,_col], ba_bare[_row,_col], 
@@ -216,7 +299,7 @@ def _backaction_steadystate_solver(L0: QGsuper,
     ba_para : complex
     """
     # Solve the steady-state of the system evolving under the QGsuper L0.
-    rhof = moment_steadystate(L0, tol)
+    _data = _moment_steadystate_solver(L0, tol)
 
     # Generate arrays and calculate the components of the backaction.
     _B = L0.wigner_2nd_rr
@@ -224,8 +307,8 @@ def _backaction_steadystate_solver(L0: QGsuper,
     _G = L0.wigner_0th[0]
 
     ba_bare = _G
-    ba_meas_ind = rhof.data_1st @ _D + (1/2)*rhof.data_1st @ _B @ rhof.data_1st
-    ba_para = (1/2)*np.trace(_B @ rhof.data_2nd)
+    ba_meas_ind = _data[1] @ _D + (1/2)*_data[1] @ _B @ _data[1]
+    ba_para = (1/2)*np.trace(_B @ _data[2])
     ba_total = ba_bare + ba_meas_ind + ba_para
 
     return ba_total,ba_bare,ba_meas_ind,ba_para

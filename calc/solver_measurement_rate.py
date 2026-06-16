@@ -65,6 +65,9 @@ def measurement_rate(HLE: QGhle,
     """
     if not HLE.isfls:
         raise ValueError("No FLS coupled to system. Measurement rate cannot be defined.")
+    elif HLE.isfls and not HLE.iscvs:
+        raise ValueError("No CVS component coupled to the FLS component. " \
+                         "The measurement rate cannot be defined.")
 
     # --------------------------------------------------------------------------
     # FLS pointer states specified, solve the corresponding measurement rate. 
