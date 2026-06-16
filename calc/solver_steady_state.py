@@ -44,6 +44,10 @@ def moment_steadystate(L0: QGsuper,
     # No FLS component is present, solve the CV system.
     elif not L0.isfls and L0.iscvs:
         norm,mean,cov = _moment_steadystate_solver(L0, tol)
+        rhof = QGstate(data_2nd = cov,
+                       data_1st = mean,
+                       data_0th = norm,
+                       dims_cvs = L0.dims_cvs)
         
     # --------------------------------------------------------------------------
     # Element of the FLS state is specified, solve the corresponding CV component
@@ -55,6 +59,10 @@ def moment_steadystate(L0: QGsuper,
             "Terms which violate this assumption will be ignored.")
 
         norm,mean,cov = _moment_steadystate_solver(L0[_index,_index], tol)
+        rhof = QGstate(data_2nd = cov,
+                       data_1st = mean,
+                       data_0th = norm,
+                       dims_cvs = L0.dims_cvs)
         
     # --------------------------------------------------------------------------
     # No element of the FLS state is specified, solve for all components.
@@ -77,12 +85,14 @@ def moment_steadystate(L0: QGsuper,
             
                 norm[_row,_col],mean[_row,_col],cov[_row,_col] = \
                     _moment_steadystate_solver(L0[_index,_index], tol)
-
-    return QGstate(data_2nd = cov,
-                   data_1st = mean,
-                   data_0th = norm,
-                   dims_cvs = L0.dims_cvs,
-                   dims_fls = L0.dims_fls[0])
+                
+        rhof = QGstate(data_2nd = cov,
+                       data_1st = mean,
+                       data_0th = norm,
+                       dims_cvs = L0.dims_cvs,
+                       dims_fls = L0.dims_fls[0])
+        
+    return rhof
 
 
 def _moment_steadystate_solver(L0: QGsuper,

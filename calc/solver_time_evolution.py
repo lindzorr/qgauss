@@ -250,12 +250,17 @@ def moment_timeevolve(L0: QGsuper = None,
     # --------------------------------------------------------------------------
     # No FLS component is present, solve the CV system.
     if not L0.isfls and L0.iscvs:
-        _Vt,_mt,_nt = _moment_timeevolve_solver(L0 = L0,
+        _nt,_mt,_Vt = _moment_timeevolve_solver(L0 = L0,
                                                 Lt = Lt,
                                                 rho0 = rho0,
                                                 tlist = tlist,
                                                 **options)
-
+        rhot = [QGstate(data_2nd = _Vt[t],
+                        data_1st = _mt[t],
+                        data_0th = _nt[t],
+                        dims_cvs = L0.dims_cvs)
+                for t in range(0, len(tlist))] 
+        
     # --------------------------------------------------------------------------
     # Element of the FLS state is specified, solve the corresponding CV component.
     elif L0.isfls and elem is not None:
@@ -274,6 +279,11 @@ def moment_timeevolve(L0: QGsuper = None,
                                   rho0 = rho0[tuple(elem)],
                                   tlist = tlist,
                                   **options)
+        rhot = [QGstate(data_2nd = _Vt[t],
+                        data_1st = _mt[t],
+                        data_0th = _nt[t],
+                        dims_cvs = L0.dims_cvs)
+                for t in range(0, len(tlist))] 
         
     # --------------------------------------------------------------------------
     # No element of the FLS state is specified, solve for all components.
@@ -303,13 +313,14 @@ def moment_timeevolve(L0: QGsuper = None,
                                           rho0 = rho0[_row,_col],
                                           tlist = tlist, 
                                           **options)
-                
-    return [QGstate(data_2nd = _Vt[t],
-                    data_1st = _mt[t],
-                    data_0th = _nt[t],
-                    dims_cvs = L0.dims_cvs,
-                    dims_fls = L0.dims_fls[0])
-                    for t in range(0, len(tlist))]
+        rhot = [QGstate(data_2nd = _Vt[t],
+                        data_1st = _mt[t],
+                        data_0th = _nt[t],
+                        dims_cvs = L0.dims_cvs,
+                        dims_fls = L0.dims_fls[0])
+                for t in range(0, len(tlist))]
+        
+    return rhot
 
 
 def _moment_timeevolve_solver(L0: QGsuper,
@@ -457,7 +468,7 @@ def _moment_timeevolve_solver(L0: QGsuper,
 
         _Vt = [vec_to_mat(_Vsol.y[:,t]) for t in range(0,len(tlist))]
         _mt = [_msol.y[:,t] for t in range(0,len(tlist))]
-        _nt = [_nsol.y[:,t] for t in range(0,len(tlist))]
+        _nt = [_nsol.y[:,t][0] for t in range(0,len(tlist))]
 
     else:
         # Define single function to pass to solve_ivp which incorporates the 
