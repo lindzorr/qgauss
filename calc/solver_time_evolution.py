@@ -446,7 +446,7 @@ def _moment_timeevolve_solver(L0: QGsuper,
         
         def _ode_func_norm(t,X):
             # Function for the norm to pass to solve_ivp.
-            #   dn(t)/dt = d/dt exp(-v(t)) = exp(-v(t))*(-dv(t)/dt) = -n(t)*G
+            #   dn(t)/dt = d/dt exp(-v(t)) = exp(-v(t))*(-dv(t)/dt) = n(t)*G
             _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
             return -X*_G
         
@@ -475,7 +475,7 @@ def _moment_timeevolve_solver(L0: QGsuper,
         # ODEs for all moments. The differential equations are defined as:
         #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T - Σ(t).B.Σ(t) + C
         #   dμ(t)/dt = (A - B.Σ(t)).μ(t) + F - Σ(t).D
-        #   dn(t)/dt = -n(t)*(G + F.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
+        #   dn(t)/dt = -n(t)*(G + D.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
 
         # Note: ODE for Σ(t) is not easily vectorized since it is non-linear.
         # The only possible solution is to cast matrix equation as
@@ -498,7 +498,7 @@ def _moment_timeevolve_solver(L0: QGsuper,
             return np.concatenate(
                 (symmat_to_vec(_A @ _XV + _XV @ _A.T - _XV @ _B @ _XV + _C),
                  (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
-                 -_Xn*(_G + _F @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
+                 -_Xn*(_G + _D @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
 
         _X0 = np.concatenate((symmat_to_vec(_V0), _m0, _n0))
         _Xsol = solve_ivp(fun = _ode_func_total, 
@@ -761,7 +761,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
 
         ba_norm[u] = _nt[u] / _nt[0]
         ba_bare[u] = _G[0]
-        ba_meas_ind[u] = _mt[u] @ _D + (1/2)*_mt[u] @ _B @ _mt[u]
+        ba_meas_ind[u] = _D @ _mt[u] + (1/2)*_mt[u] @ _B @ _mt[u]
         ba_para[u] = (1/2)*np.trace(_B @ _Vt[u])
         ba_total[u] = ba_bare[u] + ba_meas_ind[u] + ba_para[u]
 
