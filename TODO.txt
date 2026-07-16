@@ -5,6 +5,7 @@
 # The backaction rates that are returned by the qubit dephasing function could be used to calculate the Hamiltonian
 representing the induced frequency shift on the qubits, along with the effective collapse operators for the reduced
 qubit master equation.
+# Create data classes for the output of SNR and Backaction functions
 # Implement time-dependent class to handle time-dependent QGstates, QGopers, QGsupers, QGhles.
 # Function for stochastic master equations.
 # Implement functions to model homodyne, heterodyne, generaldyne, etc measurements.

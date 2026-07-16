@@ -353,7 +353,9 @@ class QGhle(object):
             self._dims_cvs = int(dims)
         else:
             raise TypeError("dims_cvs is not of a supported type: number.")
-
+        # Set iscvs property.
+        self.iscvs = dims
+        
     @property
     def dims_env(self) -> int:
         return self._dims_env
@@ -383,6 +385,16 @@ class QGhle(object):
         self.isfls = dims
     
     @property
+    def iscvs(self) -> bool:
+        return self._iscvs     
+    @iscvs.setter
+    def iscvs(self, dims):
+        if dims == [[],[]] or dims == None:
+            self._iscvs = False
+        else:
+            self._iscvs = True
+
+    @property
     def isfls(self) -> bool:
         return self._isfls     
     @isfls.setter
@@ -391,7 +403,7 @@ class QGhle(object):
             self._isfls = False
         else:
             self._isfls = True
-    
+
     @cached_property
     def isherm(self) -> bool:
         return (self.h_sys.isherm and self.h_sys_env.isherm)

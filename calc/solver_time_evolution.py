@@ -250,11 +250,11 @@ def moment_timeevolve(L0: QGsuper = None,
     # --------------------------------------------------------------------------
     # No FLS component is present, solve the CV system.
     if not L0.isfls and L0.iscvs:
-        _nt,_mt,_Vt = _moment_timeevolve_solver(L0 = L0,
-                                                Lt = Lt,
-                                                rho0 = rho0,
-                                                tlist = tlist,
-                                                **options)
+        _nt,_mt,_Vt,_vt = _moment_timeevolve_solver(L0 = L0,
+                                                    Lt = Lt,
+                                                    rho0 = rho0,
+                                                    tlist = tlist,
+                                                    **options)
         rhot = [QGstate(data_2nd = _Vt[t],
                         data_1st = _mt[t],
                         data_0th = _nt[t],
@@ -272,7 +272,7 @@ def moment_timeevolve(L0: QGsuper = None,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
 
-        _nt,_mt,_Vt = \
+        _nt,_mt,_Vt,_vt = \
         _moment_timeevolve_solver(L0 = L0[_index,_index],
                                   Lt = [[x[0][_index,_index],x[1]]
                                         for x in Lt],
@@ -301,12 +301,13 @@ def moment_timeevolve(L0: QGsuper = None,
         _Vt = np.empty([len(tlist),_fls_row,_fls_col,_cvs_dim,_cvs_dim], dtype=complex)
         _mt = np.empty([len(tlist),_fls_row,_fls_col,_cvs_dim], dtype=complex)
         _nt = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        _vt = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
 
         for _row in range(0,_fls_row):
             for _col in range(0,_fls_col):
                 _index = np.prod(L0.dims_fls[0][0])*_col + _row
 
-                _nt[:,_row,_col], _mt[:,_row,_col], _Vt[:,_row,_col] = \
+                _nt[:,_row,_col], _mt[:,_row,_col], _Vt[:,_row,_col], _vt[:,_row,_col] = \
                 _moment_timeevolve_solver(L0 = L0[_index,_index],
                                           Lt = [[x[0][_index,_index],x[1]]
                                                 for x in Lt],
@@ -366,6 +367,8 @@ def _moment_timeevolve_solver(L0: QGsuper,
         Time-dependent vector of means.  
     norm : array[complex]
         Time-dependent value of the norm. 
+    zeroth_cumulant : array[complex]
+        Time-dependent value of the zeroth-order cumulant. 
     """
     _defaults = {'atol': qgauss.settings.atol,
                  'rtol': qgauss.settings.rtol, 
@@ -446,9 +449,16 @@ def _moment_timeevolve_solver(L0: QGsuper,
         
         def _ode_func_norm(t,X):
             # Function for the norm to pass to solve_ivp.
-            #   dn(t)/dt = d/dt exp(-v(t)) = exp(-v(t))*(-dv(t)/dt) = n(t)*G
+            #   dn(t)/dt = d/dt exp(-v(t)) = exp(-v(t))*(-dv(t)/dt) = -n(t)*G
             _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
             return -X*_G
+        
+        def _ode_func_zeroth_cumulant(t,X):
+            # Function for the zeroth order cumulant (that is, the -log of the
+            # zeroth order moment, or the norm) to pass to solve_ivp.
+            #   dv(t)/dt = G
+            _G = _G0 + sum([x[0]*x[1](t) for x in _Gt])
+            return _G
         
         _Vsol = solve_ivp(fun = _ode_func_cov, 
                           t_span = (tlist[0],tlist[-1]), 
@@ -465,10 +475,16 @@ def _moment_timeevolve_solver(L0: QGsuper,
                           y0 = _n0, 
                           t_eval = tlist, 
                           **options)
-
+        _vsol = solve_ivp(fun = _ode_func_zeroth_cumulant, 
+                          t_span = (tlist[0],tlist[-1]), 
+                          y0 = [0], 
+                          t_eval = tlist, 
+                          **options)
+        
         _Vt = [vec_to_mat(_Vsol.y[:,t]) for t in range(0,len(tlist))]
         _mt = [_msol.y[:,t] for t in range(0,len(tlist))]
         _nt = [_nsol.y[:,t][0] for t in range(0,len(tlist))]
+        _vt = [_vsol.y[:,t][0] for t in range(0,len(tlist))]
 
     else:
         # Define single function to pass to solve_ivp which incorporates the 
@@ -476,6 +492,11 @@ def _moment_timeevolve_solver(L0: QGsuper,
         #   dΣ(t)/dt = A.Σ(t) + Σ(t).A^T - Σ(t).B.Σ(t) + C
         #   dμ(t)/dt = (A - B.Σ(t)).μ(t) + F - Σ(t).D
         #   dn(t)/dt = -n(t)*(G + D.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)])
+        #   dv(t)/dt = G + D.μ(t) + ½*μ(t).B.μ(t) + ½*tr[B.Σ(t)]
+
+        # Note, the inclusion of differential equations for the zeroth order
+        # moments and cumulants are both included due to floating point errors
+        # which occur when using log to extract the cumulant.
 
         # Note: ODE for Σ(t) is not easily vectorized since it is non-linear.
         # The only possible solution is to cast matrix equation as
@@ -498,9 +519,11 @@ def _moment_timeevolve_solver(L0: QGsuper,
             return np.concatenate(
                 (symmat_to_vec(_A @ _XV + _XV @ _A.T - _XV @ _B @ _XV + _C),
                  (_A - _XV @ _B) @ _Xm + _F - _XV @ _D,
-                 -_Xn*(_G + _D @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV))))
+                 -_Xn*(_G + _D @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV)),
+                 _G + _D @ _Xm + (1/2)*_Xm @ _B @ _Xm + (1/2)*np.trace(_B @ _XV)
+                 ))
 
-        _X0 = np.concatenate((symmat_to_vec(_V0), _m0, _n0))
+        _X0 = np.concatenate((symmat_to_vec(_V0), _m0, _n0, np.array([0]) ))
         _Xsol = solve_ivp(fun = _ode_func_total, 
                           t_span = (tlist[0],tlist[-1]), 
                           y0 = _X0, 
@@ -510,8 +533,9 @@ def _moment_timeevolve_solver(L0: QGsuper,
         _Vt = [vec_to_symmat(_Xsol.y[0:_dims*(2*_dims+1), t]) for t in range(0,len(tlist))]
         _mt = [_Xsol.y[_dims*(2*_dims+1):_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
         _nt = [_Xsol.y[_dims*(2*_dims+3), t] for t in range(0,len(tlist))]
+        _vt = [_Xsol.y[_dims*(2*_dims+3)+1, t] for t in range(0,len(tlist))]
 
-    return _nt,_mt,_Vt
+    return _nt,_mt,_Vt,_vt
 
 
 def backaction_timeevolve(L0: QGsuper = None,
@@ -580,19 +604,23 @@ def backaction_timeevolve(L0: QGsuper = None,
         Total time-integrated dephasing and frequency shift, as defined by the 
         ratio of the norm with its inital value.
     ba_total : list[complex] or list[array[complex]]
-        Steady-state total dephasing and frequency shift.
+        Time-dependent total dephasing rate and frequency shift.
     ba_bare : list[complex] or list[array[complex]]
-        Steady-state parasitic dephasing and frequency shift. Includes 
+        Time-dependent bare dephasing rate and frequency shift. Includes 
         components from the innate FLS dynamics as well backation from the 
         CVS state which are independent of the first and second moments.
     ba_meas_ind : list[complex] or list[array[complex]]
-        Steady-state measurement induced dephasing and frequency shift. 
+        Time-dependent measurement induced dephasing rate and frequency shift. 
         This is the component dependent on the displacement of the 
         continuous variable system.
     ba_para : list[complex] or list[array[complex]]
-        Steady-state parasitic dephasing and frequency shift. The dephasing part 
-        of this components arises when the CVS state has variances above vacuum,
-        while the frequency shift is present even for the vacuum shift.
+        Time-dependent parasitic dephasing rate and frequency shift. The 
+        dephasing part of this components arises when the CVS state has 
+        variances above vacuum, while the frequency shift is present even for 
+        the vacuum shift.
+    ba_int : list[complex] or list[array[complex]]
+        Integrated total dephasing and frequency shift. ba_norm is equivalent
+        to the exponential of this quantity.
     """
     # --------------------------------------------------------------------------
     _defaults = {'atol': qgauss.settings.atol, 
@@ -617,7 +645,7 @@ def backaction_timeevolve(L0: QGsuper = None,
     # --------------------------------------------------------------------------
     # No FLS component is present, solve the CV system.
     if not L0.isfls and L0.iscvs:
-        ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
+        ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para,ba_int = \
             _backaction_timeevolve_solver(L0 = L0,
                                           Lt = Lt,
                                           rho0 = rho0,
@@ -635,7 +663,7 @@ def backaction_timeevolve(L0: QGsuper = None,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
 
-        ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para = \
+        ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para,ba_int = \
             _backaction_timeevolve_solver(L0 = L0[_index,_index], 
                                           Lt = [[x[0][_index,_index],x[1]] 
                                                 for x in Lt], 
@@ -660,6 +688,7 @@ def backaction_timeevolve(L0: QGsuper = None,
         ba_bare = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
         ba_meas_ind = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
         ba_para = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
+        ba_int = np.empty([len(tlist),_fls_row,_fls_col], dtype=complex)
 
         for _row in range(0,_fls_row):
             for _col in range(0,_fls_col):
@@ -669,7 +698,8 @@ def backaction_timeevolve(L0: QGsuper = None,
                  ba_total[:,_row,_col], 
                  ba_bare[:,_row,_col], 
                  ba_meas_ind[:,_row,_col], 
-                 ba_para[:,_row,_col]) = \
+                 ba_para[:,_row,_col],
+                 ba_int[:,_row,_col]) = \
                     _backaction_timeevolve_solver(L0 = L0[_index,_index], 
                                                   Lt = [[x[0][_index,_index],x[1]]
                                                         for x in Lt], 
@@ -677,7 +707,7 @@ def backaction_timeevolve(L0: QGsuper = None,
                                                   tlist = tlist, 
                                                   **options)
                 
-    return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para
+    return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para,ba_int
 
  
 def _backaction_timeevolve_solver(L0: QGsuper,
@@ -693,8 +723,8 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     where Σ and μ are the 2nd and 1st central moments of ρ, respectively. The 
     elements B,D,G are extracted from the 'input' Liouvillian with governs the 
     dynamics of ρ. The dephasing rate and frequency shift correspond to the real 
-    and imaginary parts of 'v', respectively. The backaction may be broken into 
-    bare/innate 'ba_bare', measurement induced 'ba_meas_ind', and parasitic 
+    and imaginary parts of 'dv/dt', respectively. The backaction may be broken 
+    into bare/innate 'ba_bare', measurement induced 'ba_meas_ind', and parasitic 
     'ba_para', components:
         bare = G
         meas_ind = μ.D + (1/2)*μ.B.μ
@@ -714,6 +744,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     ba_bare : array[complex]
     ba_meas_ind : array[complex]
     ba_para : array[complex]
+    ba_int : array[complex]
 
     Which is the better output format:
     # -> tuple[list[complex],list[complex],list[complex],list[complex],list[complex]] (currently used)
@@ -721,11 +752,11 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     """
     # Solve the dynamics of the moments of the initial state rho0 evolving under 
     # the Lindbladian QGsuper L0 + Lt.
-    _nt,_mt,_Vt = _moment_timeevolve_solver(L0 = L0,
-                                            Lt = Lt,
-                                            rho0 = rho0,
-                                            tlist = tlist,
-                                            **options)
+    _nt,_mt,_Vt,_vt = _moment_timeevolve_solver(L0 = L0,
+                                                Lt = Lt,
+                                                rho0 = rho0,
+                                                tlist = tlist,
+                                                **options)
     _tol = options['atol']
 
     if L0 is None:
@@ -752,6 +783,7 @@ def _backaction_timeevolve_solver(L0: QGsuper,
     ba_bare = np.empty([len(tlist)], dtype=complex)
     ba_meas_ind = np.empty([len(tlist)], dtype=complex)
     ba_para = np.empty([len(tlist)], dtype=complex)
+    ba_int = np.empty([len(tlist)], dtype=complex)
 
     # Calculate the parasitic and measurement induced parts of the backaction.
     for u in range(0,len(tlist)):
@@ -764,8 +796,9 @@ def _backaction_timeevolve_solver(L0: QGsuper,
         ba_meas_ind[u] = _D @ _mt[u] + (1/2)*_mt[u] @ _B @ _mt[u]
         ba_para[u] = (1/2)*np.trace(_B @ _Vt[u])
         ba_total[u] = ba_bare[u] + ba_meas_ind[u] + ba_para[u]
+        ba_int[u] = _vt[u]
 
-    return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para
+    return ba_norm,ba_total,ba_bare,ba_meas_ind,ba_para,ba_int
 
 
 def _tdep_super_array(data : list[tuple[QGsuper,Callable[[float], complex]]],
