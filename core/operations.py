@@ -41,12 +41,12 @@ def expect(oper: QGoper,
 
     # Determine how to calculate expectation value depending on if both state 
     # and operator are FLS and/or CVS
-    if (state.isfls and not state.iscvs):
+    if state.isfls and not state.iscvs:
         return np.trace(state.data_0th @ oper.data_0th)
     
     # When CVS components are present, we must check that the state 
     # is integrable
-    if state.iscvs and state.isintegrable:
+    elif state.iscvs and state.isintegrable:
         if not state.isfls:
             return _expect_cv(oper, state)
         elif state.isfls:

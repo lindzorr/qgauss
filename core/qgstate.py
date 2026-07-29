@@ -443,16 +443,13 @@ class QGstate(object):
         if self.data_0th == 0:
                 return True
         else:
-            try:
-                _re_precision_mat = np.real(np.linalg.inv(self.data_2nd))
-                evals = eigvals(_re_precision_mat)
-                if (np.all(evals > 0) and 
-                    np.all(_re_precision_mat == _re_precision_mat.T)
-                   ):
-                    return True
-                else:
-                    return False
-            except:
+            _re_precision_mat = np.real(np.linalg.inv(self.data_2nd))
+            evals = eigvals(_re_precision_mat)
+            if (np.all(evals > 0) and 
+                np.all(self.data_2nd == self.data_2nd.T)
+                ):
+                return True
+            else:
                 return False
             
     @cached_property
