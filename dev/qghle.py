@@ -153,13 +153,16 @@ class QGhle(object):
                 ):
 
         # QGhle as input, copy data.
-        if isinstance(inpt, QGoper):
+        if isinstance(inpt, QGhle):
             self._dims_cvs = inpt.dims_cvs
             self._dims_fls = inpt.dims_fls
             self._dims_env = inpt.dims_env
+            self._iscvs = inpt.iscvs
+            self._isfls = inpt.isfls
 
             self._h_sys = inpt.h_sys
             self._h_sys_env = inpt.h_sys_env
+            self._h_se = inpt.h_se
             self._input_env = inpt.input_env
 
         # In other cases, specific components of QGoper must be passed as
@@ -311,9 +314,9 @@ class QGhle(object):
         if self.isfls == True:
             self._h_se = \
             np.asarray([[self._h_sys_env[x,y].data_2nd[0:2*self.dims_cvs,
-                                                        2*self.dims_cvs:2*self.dims_tot]
-                         for x in range(0,np.prod(self.dims_fls[0]))]
-                         for y in range(0,np.prod(self.dims_fls[1]))])
+                                                       2*self.dims_cvs:2*self.dims_tot]
+                         for y in range(0,np.prod(self.dims_fls[1]))]
+                         for x in range(0,np.prod(self.dims_fls[0]))])
         else:
             self._h_se = \
             self._h_sys_env.data_2nd[0:2*self.dims_cvs,
@@ -389,7 +392,7 @@ class QGhle(object):
         return self._iscvs     
     @iscvs.setter
     def iscvs(self, dims):
-        if dims == [[],[]] or dims == None:
+        if dims == 0 or dims == None:
             self._iscvs = False
         else:
             self._iscvs = True
@@ -533,7 +536,12 @@ class QGhle(object):
                 raise ValueError("Cannot perform addition operation between " \
                 "QGhles with different dimensions or input correlations.")
         elif other == 0:
-            return QGhle(self)
+            return QGhle(h_sys = self.h_sys,
+                         h_sys_env = self.h_sys_env,
+                         input_env = self.input_env,
+                         dims_cvs = self.dims_cvs,
+                         dims_fls = self.dims_fls,
+                         dims_env = self.dims_env)
         else:
             raise TypeError("Cannot perform addition operation between the " \
             "types QGhle and " + type(other).__name__ + ".")
@@ -607,9 +615,9 @@ class QGhle(object):
         
         if self.isfls:
             if index is None:
-                _A = [(self.symform_sys @ self.h_sys[index,index].data_2nd
-                      + (1/2)*(self.symform_sys @ self.h_se[index,index]
-                               @ self.symform_env @ self.h_se[index,index].T))
+                _A = [(self.symform_sys @ self.h_sys[x,x].data_2nd
+                      + (1/2)*(self.symform_sys @ self.h_se[x,x]
+                               @ self.symform_env @ self.h_se[x,x].T))
                       for x in range(0,np.prod(self.dims_fls[0]))]
                 QGhle._isstable(_A)
 
@@ -696,16 +704,16 @@ class QGhle(object):
             if index is None:         
                 _out_mean = np.zeros((np.prod(self.dims_fls[0]),
                                       np.prod(self.dims_fls[1]),
-                                      2*dims_env))
+                                      2*self.dims_env))
                 _out_cov = np.zeros((np.prod(self.dims_fls[0]),
                                      np.prod(self.dims_fls[1]),
-                                     2*dims_env,
-                                     2*dims_env))
+                                     2*self.dims_env,
+                                     2*self.dims_env))
                 
                 for x in range(0,np.prod(self.dims_fls[0])):
                     _smat = self.scattering_matrix(freq, x)
                     _smat_neg = self.scattering_matrix(-freq, x)
-                    _tmat = self.transfer_mat(freq, x)
+                    _tmat = self.transfer_matrix(freq, x)
 
                     _out_mean[x,x] = \
                     (_smat @ self.input_env.data_1st
@@ -754,7 +762,7 @@ class QGhle(object):
             (self.dims_fls == other.dims_fls) and
             (self.dims_env == other.dims_env) and
             (self.h_sys == other.h_sys) and
-            (self.h_sys_env == self.h_sys_env) and
+            (self.h_sys_env == other.h_sys_env) and
             (self.input_env == other.input_env)
             ):
                 return True
@@ -776,7 +784,7 @@ class QGhle(object):
             "specific elements are required.")
         
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGhle:
-        # Private void function to remove small magnitude elements from the data.
+        # Public void function to remove small magnitude elements from the data.
         self.h_se.real[np.abs(self.h_se.real) < tol] = 0
         self.h_se.imag[np.abs(self.h_se.imag) < tol] = 0
 
