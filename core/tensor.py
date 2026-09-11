@@ -37,12 +37,14 @@ def tensor(*args) -> QGstate | QGoper:
     """
     if not args:
         raise TypeError("Tensor function requires at least one input argument.")
-    elif len(args) == 1 and isinstance(args[0], QGoper | QGstate):
+    elif len(args) == 1 and isinstance(args[0], (QGoper, QGstate)):
         # If only one argument is provided, return copy
-        return args[0]
+        return type(args[0])(args[0])
     elif len(args) == 1 and isinstance(args[0], list):
         # List passed as arguments, convert to tuple
         args = tuple(args[0])
+    if args == ():
+        raise TypeError("Tensor function requires at least one input argument.")
 
     # Check that every element of args is a QGoper or QGstate and call the
     # correct function.

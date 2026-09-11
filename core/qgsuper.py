@@ -65,12 +65,12 @@ class QGsuper(object):
     The arrays in the above PDE are stored in the "wigner" proprties of the 
     QGsuper class, and are computed from the "data" arrays. The arrays are 
     defined analagously to the data arrays as:
-        · wigner_2nd_der_var[l,m,j,k] : A_jk (∂/∂r_j)*r_k*(S_l)*ρ*(S_m)
-        · wigner_2nd_var_var[l,m,j,k] : B_jk (r_j*r_k)*(S_l)*ρ*(S_m)
-        · wigner_2nd_der_der[l,m,j,k] : C_jk (∂/∂r_j)*(∂/∂r_k)*(S_l)*ρ*(S_m)
-        · wigner_1st_var[l,m,j]       : D_j  r_j*(S_l)*ρ*(S_m)
-        · wigner_1st_der[l,m,j]       : F_j  (∂/∂r_j)*(S_l)*ρ*(S_m)
-        · wigner_0th[l,m]             : G    (S_l)*ρ*(S_m)
+        · wigner_2nd_rdr[l,m,j,k]  : A_jk (∂/∂r_j)*r_k*(S_l)*ρ*(S_m)
+        · wigner_2nd_rr[l,m,j,k]   : B_jk (r_j*r_k)*(S_l)*ρ*(S_m)
+        · wigner_2nd_drdr[l,m,j,k] : C_jk (∂/∂r_j)*(∂/∂r_k)*(S_l)*ρ*(S_m)
+        · wigner_1st_r[l,m,j]      : D_j  r_j*(S_l)*ρ*(S_m)
+        · wigner_1st_dr[l,m,j]     : F_j  (∂/∂r_j)*(S_l)*ρ*(S_m)
+        · wigner_0th[l,m]          : G    (S_l)*ρ*(S_m)
     Note, due to this definition, the dynamics of W_jk(r;t) maybe depend on all 
     other components of W_T, depending on the form the superoperator. The 
     resulting superoperator may therefore not yield a Gaussian state when 
@@ -196,7 +196,9 @@ class QGsuper(object):
     drop : (QGsuper, int | array[int] | tuple[int]) -> QGsuper
         Remove all specified CVS modes from QGoper. 
     keep : (QGsuper, int | array[int] | tuple[int]) -> QGsuper
-        Keep only the specified CVS modes in QGsuper.     
+        Keep only the specified CVS modes in QGsuper. 
+    mode : (QGsuper, int | array[int] | tuple[int]) -> QGsuper
+        Alternate naming for the "keep" method.     
     conj : QGsuper -> QGsuper
         Complex-conjugate of all elements of QGsuper.
     trans : QGsuper -> QGsuper
@@ -622,7 +624,7 @@ class QGsuper(object):
         if col is None:
             j = row
         else:
-            j = row*np.prod(self.dims_fls[0][0]) + col
+            j = np.prod(self.dims_fls[0][0])*row + col
 
         if (all([QGsuper._iszero(self.data_2nd_l[j,k]) for k in range(rank) if k != j]) and
             all([QGsuper._iszero(self.data_2nd_r[j,k]) for k in range(rank) if k != j]) and
@@ -641,8 +643,8 @@ class QGsuper(object):
     
     # Set lists of attribute names that need to be invalidated together
     # when data arrays are updated.
-    _attr_2nd = ['is2nd','wigner_2nd_deriv_var','wigner_2nd_var','wigner_2nd_deriv']
-    _attr_1st = ['is1st','wigner_1st_deriv','wigner_1st_var']
+    _attr_2nd = ['is2nd','wigner_2nd_rdr','wigner_2nd_rr','wigner_2nd_drdr']
+    _attr_1st = ['is1st','wigner_1st_dr','wigner_1st_r']
     _attr_0th = ['is0th','wigner_0th']
     _attr_gen = ['iscoherent','isgauss']
 
@@ -750,19 +752,19 @@ class QGsuper(object):
 
     def __eq__(self, other: QGsuper) -> bool:
         # Check equality of QGsupers #
-        same_dims = (self.dims_fls == other.dims_fls and
-                     self.dims_cvs == other.dims_cvs)
-        same_elems = (QGsuper._iszero(self.data_2nd_l - other.data_2nd_l) and
-                      QGsuper._iszero(self.data_2nd_r - other.data_2nd_r) and
-                      QGsuper._iszero(self.data_2nd_m - other.data_2nd_m) and
-                      QGsuper._iszero(self.data_1st_l - other.data_1st_l) and
-                      QGsuper._iszero(self.data_1st_r - other.data_1st_r) and
-                      QGsuper._iszero(self.data_0th - other.data_0th))
-        if (isinstance(other, QGsuper) and
-            same_dims and
-            same_elems
-           ):
-            return True
+        if isinstance(other, QGsuper):
+            same_dims = (self.dims_fls == other.dims_fls and
+                         self.dims_cvs == other.dims_cvs)
+            same_elems = (QGsuper._iszero(self.data_2nd_l - other.data_2nd_l) and
+                          QGsuper._iszero(self.data_2nd_r - other.data_2nd_r) and
+                          QGsuper._iszero(self.data_2nd_m - other.data_2nd_m) and
+                          QGsuper._iszero(self.data_1st_l - other.data_1st_l) and
+                          QGsuper._iszero(self.data_1st_r - other.data_1st_r) and
+                          QGsuper._iszero(self.data_0th - other.data_0th))
+            if same_dims and same_elems:
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -813,8 +815,7 @@ class QGsuper(object):
                            data_1st_r = np.delete(self.data_1st_r, _ind, axis=0),
                            data_0th = self.data_0th,
                            dims_cvs = self.dims_cvs - len(args))
-
-   
+    
     def keep(self, *args) -> QGsuper:
         # Keeps CV modes specified in args from self, and return a new QGsuper
         # List, array, or tuple of indices passed as args, convert to tuple
@@ -826,6 +827,10 @@ class QGsuper(object):
         ind = list(set(range(1,self.dims_cvs+1)) - set(args))
         return self.drop(ind)
 
+    def mode(self, *args) -> QGsuper:
+        # Alternate naming for the "keep" method
+        return self.keep(args)
+    
     def conj(self) -> QGsuper:
         # Complex-conjugate of all elements of the QGsuper
         return QGsuper(data_2nd_l = self.data_2nd_l.conj(),
@@ -839,8 +844,8 @@ class QGsuper(object):
 
     def trans(self, level = None) -> QGsuper:
         # Transpose of arrays within the QGsuper. Can specify the level at 
-        # which it is applied, either "FLS" or "CVS", or the entire array if 
-        # none are passed. 
+        # which it is applied, either "FLS"/"fls" or "CVS"/"cvs", or the entire
+        # array if none are passed. 
         if self.isfls:
             if level is None:
                 return QGsuper(data_2nd_l = self.data_2nd_l.transpose([1,0,3,2]),
@@ -851,7 +856,7 @@ class QGsuper(object):
                                data_0th = self.data_0th.transpose([1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                                dims_cvs = self.dims_cvs)
-            elif level == 'FLS':
+            elif level in ('FLS', 'fls'):
                 return QGsuper(data_2nd_l = self.data_2nd_l.transpose([1,0,2,3]),
                                data_2nd_r = self.data_2nd_r.transpose([1,0,2,3]),
                                data_2nd_m = self.data_2nd_m.transpose([1,0,2,3]),
@@ -860,7 +865,7 @@ class QGsuper(object):
                                data_0th = self.data_0th.transpose([1,0]),
                                dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                                dims_cvs = self.dims_cvs)
-            elif level == 'CVS':
+            elif level in ('CVS', 'cvs'):
                 return QGsuper(data_2nd_l = self.data_2nd_l.transpose([0,1,3,2]),
                                data_2nd_r = self.data_2nd_r.transpose([0,1,3,2]),
                                data_2nd_m = self.data_2nd_m.transpose([0,1,3,2]),
@@ -869,8 +874,10 @@ class QGsuper(object):
                                data_0th = self.data_0th,
                                dims_fls = self.dims_fls,
                                dims_cvs = self.dims_cvs)
+            else:
+                raise AttributeError(f"QGsuper transpose passed unsuitable argument '{level}'.")
         else:
-            if level == 'CVS' or level is None:
+            if level in ('CVS', 'cvs') or level is None:
                 return QGsuper(data_2nd_l = self.data_2nd_l.T,
                                data_2nd_r = self.data_2nd_r.T,
                                data_2nd_m = self.data_2nd_m.T,
@@ -878,8 +885,10 @@ class QGsuper(object):
                                data_1st_r = self.data_1st_r.T,
                                data_0th = self.data_0th.T,
                                dims_cvs = self.dims_cvs)
-            elif level == 'FLS':
+            elif level in ('FLS', 'fls'):
                 return self
+            else:
+                raise AttributeError(f"QGsuper transpose passed unsuitable argument '{level}'.")
 
     def dag(self) -> QGsuper:
         # Adjoint/complex-conjugate/dagger of QGsuper
@@ -904,7 +913,7 @@ class QGsuper(object):
                            dims_cvs = self.dims_cvs)
         
     def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGsuper:
-        # Private void function to remove small magnitude elements from data
+        # Public void function to remove small magnitude elements from data
         self.data_2nd_l.real[np.abs(self.data_2nd_l.real) < tol] = 0
         self.data_2nd_l.imag[np.abs(self.data_2nd_l.imag) < tol] = 0
 

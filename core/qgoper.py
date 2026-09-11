@@ -809,7 +809,7 @@ class QGoper(object):
         _data_2nd_shape_fls_row = 0
         _data_2nd_shape_fls_col = 0
         if data_2nd is not None:
-            _data_2nd_shape = data_2nd.shape
+            _data_2nd_shape = np.asarray(data_2nd).shape
             _data_2nd_axes = len(_data_2nd_shape)
             if _data_2nd_axes == 4:
                 _data_2nd_shape_fls_row = _data_2nd_shape[0]
@@ -827,7 +827,7 @@ class QGoper(object):
         _data_1st_shape_fls_row = 0
         _data_1st_shape_fls_col = 0
         if data_1st is not None:
-            _data_1st_shape = data_1st.shape
+            _data_1st_shape = np.asarray(data_1st).shape
             _data_1st_axes = len(_data_1st_shape)
             if _data_1st_axes == 3:
                 _data_1st_shape_fls_row = _data_1st_shape[0]
@@ -846,7 +846,7 @@ class QGoper(object):
         _data_0th_shape_fls_col = 0
         if data_0th is not None:
             if isinstance(data_0th, (np.ndarray, list)):
-                _data_0th_shape = data_0th.shape
+                _data_0th_shape = np.asarray(data_0th).shape
                 _data_0th_axes = len(_data_0th_shape)
                 if _data_0th_axes == 2:
                     _data_0th_shape_fls_row = _data_0th_shape[0]
@@ -902,7 +902,7 @@ class QGoper(object):
         _data_2nd_shape_cvs_row = 0
         _data_2nd_shape_cvs_col = 0
         if data_2nd is not None:
-            _data_2nd_shape = np.array(data_2nd).shape
+            _data_2nd_shape = np.asarray(data_2nd).shape
             _data_2nd_axes = len(_data_2nd_shape)
             if _data_2nd_axes == 4:
                 _data_2nd_shape_cvs_row = _data_2nd_shape[2]
@@ -920,7 +920,7 @@ class QGoper(object):
         # or data is None, set shapes to 0. 
         _data_1st_shape_cvs = 0
         if data_1st is not None:
-            _data_1st_shape = np.array(data_1st).shape
+            _data_1st_shape = np.asarray(data_1st).shape
             _data_1st_axes = len(_data_1st_shape)
             if _data_1st_axes == 3:
                 _data_1st_shape_cvs = _data_1st_shape[2]
@@ -934,14 +934,14 @@ class QGoper(object):
 
         if data_0th is not None:
             if isinstance(data_0th, (np.ndarray, list)):
-                _data_0th_axes = len(data_0th.shape)
+                _data_0th_axes = len(np.asarray(data_0th).shape)
             elif isinstance(data_0th, (numbers.Number, np.number)):
                 _data_0th_axes = 1
-            else:
-                _data_0th_axes = 0
             if _data_0th_axes not in (0,1,2):
                 raise ValueError("Shape of data_0th cannot be handled by the" \
                 " QGoper class and should be reformatted.")
+        else:
+            _data_0th_axes = 0
         
         # Check if the data has no CVS component.
         if ((_data_2nd_axes == 0) and 

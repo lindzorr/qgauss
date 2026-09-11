@@ -36,8 +36,13 @@ def moment_steadystate(L0: QGsuper,
         Steady-state intracavity state associated with the input superoperator.
     """
     # --------------------------------------------------------------------------
+    # No CVS or FLS component is present, raise error.
+    if not L0.isfls and not L0.iscvs:
+        raise ValueError("No CVS or FLS component. " \
+                         "Steady-state moments cannot be defined.")
+    
     # No CVS component is present, raise error.
-    if L0.isfls and not L0.iscvs:
+    elif L0.isfls and not L0.iscvs:
         raise ValueError("No CVS component coupled to the FLS component. " \
                          "Steady-state moments cannot be defined.")
     
@@ -100,7 +105,7 @@ def _moment_steadystate_solver(L0: QGsuper,
                                ) -> QGstate:
     """
     Internal steady-state solver for the steady-state a corresponding CVS-only
-    systemLiouvillian, L0. The function warn the use if it is found that no
+    system Liouvillian, L0. The function warn the use if it is found that no
     steady-state solution to L0 exists.
 
     ---- Parameters ----
@@ -113,12 +118,12 @@ def _moment_steadystate_solver(L0: QGsuper,
         Parts of numbers below this tolerance value are set to zero.
 
     ---- Returns ----
-    cov : array[complex]
-        Steady-state covariance matrix.
+    norm : complex
+        Steady-state value of the norm, either 0 or 1. 
     mean : array[complex]
         Steady-state vector of means.  
-    norm : complex
-        Steady-state value of the norm, either 0 or 1.  
+    cov : array[complex]
+        Steady-state covariance matrix.
     """
     # Generate arrays for the moment equations. These are the arrays obtained by
     # mapping the Liouvillian to a partial differential equation in the Wigner
@@ -134,7 +139,7 @@ def _moment_steadystate_solver(L0: QGsuper,
     if (np.all(np.abs(_B) < tol) and np.all(np.abs(_D) < tol)):
         # Solver for the steady-state of a norm-preserving Liouvillian. This 
         # solver converts the input data into the following matrix equations:
-        #    0 = Σ.A^T + Σ.V + C
+        #    0 = A.Σ + Σ.A^T + C
         #    0 = A.μ + F
         # Σ is the covariance matrix, and μ is an array containing the means.
         if np.any(np.real(np.linalg.eigvals(_A)) >= 0):
@@ -149,7 +154,7 @@ def _moment_steadystate_solver(L0: QGsuper,
         # solver converts the input data into the following non-linear matrix 
         # equations:
         #    0 = A.Σ + Σ.A^T - Σ.B.Σ + C
-        #    0 = (A - B.Σ).μ + F - Σ.D
+        #    0 = (A - Σ.B).μ + F - Σ.D
         # Σ is the covariance matrix, and μ is an array containing the means. 
         # For the covariance matrix, the continuous algebraic Riccati equation
         # (CARE) is solved using the stable-subspace solution method. In this
@@ -229,8 +234,13 @@ def backaction_steadystate(L0: QGsuper,
         while the frequency shift is present even for the vacuum shift.
     """
     # --------------------------------------------------------------------------
+    # No CVS or FLS component is present, raise error.
+    if not L0.isfls and not L0.iscvs:
+        raise ValueError("No CVS or FLS component. " \
+                         "Backaction cannot be defined.")
+    
     # No CVS component is present, raise error.
-    if L0.isfls and not L0.iscvs:
+    elif L0.isfls and not L0.iscvs:
         raise ValueError("No CVS component coupled to the FLS component. " \
                          "Bakaction from the CVS component cannot be defined.")
     
