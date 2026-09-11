@@ -193,7 +193,7 @@ class QGoper(object):
                 self.dims_cvs = QGoper._set_dims_cvs(data_2nd, data_1st, data_0th)
 
             # Set data arrays from input data.
-            self._asym_corr = np.zeros(dims_fls)
+            self._asym_corr = 0
             self.data_0th = data_0th
             self.data_1st = data_1st
             self.data_2nd = data_2nd
