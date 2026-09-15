@@ -51,11 +51,14 @@ def expect(oper: QGoper,
             return _expect_cv(oper, state)
         elif state.isfls:
             return sum(_expect_cv(oper[k,j], state[j,k])
-                       for j,k in zip(np.prod(state.dims_fls[0]),
-                                      np.prod(state.dims_fls[1])))
-        else:
-            raise ValueError("State is not integrable, and hence the " \
-            "expectation value cannot be computed.")
+                       for j in range(np.prod(state.dims_fls[0]))
+                       for k in range(np.prod(state.dims_fls[1])))
+    elif state.iscvs and not state.isintegrable:
+        raise ValueError("State is not integrable, and hence the " \
+                         "expectation value cannot be computed.")
+    else:
+        raise ValueError("State has no FLS or CVS componant, and hence the " \
+                         "expectation value cannot be defined.")
 
 
 def _expect_cv(oper: QGoper, 
@@ -114,7 +117,8 @@ def commutator(A: QGoper,
     
     # Commutators of mixed FLS/CVS operators not yet implemented
     else:
-        NotImplemented
+        raise NotImplementedError("Commutators between mixed FLS/CVS " \
+                                  "operators is not yet implemented.")
 
 
 def ASp_transform(input: QGstate | QGoper | QGsuper,
@@ -158,7 +162,7 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
         Object obtained after application of the symplectic transformation(s).
     """
     if gen_oper is None:
-        return input
+        return type(input)(input)
     if gen_oper.isfls:
         raise ValueError("Generator of symplectic-affine transformation " \
         "cannot have FLS component.")
@@ -277,3 +281,5 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                        data_0th = _out_data_0th,
                        dims_fls = input.dims_fls,
                        dims_cvs = input.dims_cvs)
+    else:
+        raise TypeError("Argument with an unsupported type passed to function.")

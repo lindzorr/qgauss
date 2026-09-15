@@ -1,4 +1,5 @@
 import warnings
+from dataclasses import dataclass, field
 import numpy.typing as npt
 import qgauss
 import numpy as np
@@ -8,16 +9,73 @@ from ..core.qgoper import QGoper
 from ..dev.qghle import QGhle
 from ..calc.utilities import *
 
-__all__ = ['measurement_rate']
+__all__ = ['measurement_rate','MeasRateResult','MeasRateResultArray']
 
 
+@dataclass(frozen=True)
+class MeasRateResult:
+    """
+    Measurement rate result for a single pair of pointer states.
+ 
+    ---- Attributes ----
+    measrate : float
+        Measurement rate for the pair of pointer states.
+    signal : float
+        Measurement signal, that is, displacement between pointer states
+        along the quadrature defined by the measurement operator.
+    noise : float
+        Measurement noise along the quadrature defined by the measurement
+        operator, not including noise_rest.
+    meas_oper : QGoper
+        Linear measurement operator used (or found to be optimal) for this
+        pair of pointer states.
+    pointers : tuple[int, int]
+        The pair of pointer-state indices.
+    """
+    measrate: float
+    signal: float
+    noise: float
+    meas_oper: QGoper
+    pointers: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class MeasRateResultArray:
+    """
+    Measurement rate results between all pairs of pointer states.
+ 
+    ---- Attributes ----
+    measrate : np.ndarray
+        Measurement rate for every pair of pointer states.
+    signal : np.ndarray
+        Measurement signal for every pair of pointer states.
+    noise : np.ndarray
+        Measurement noise for every pair of pointer states, not including
+        noise_rest.
+    meas_oper : list[list[QGoper]]
+        Linear measurement operator used for each pair of pointer states.
+    """
+    measrate: np.ndarray
+    signal: np.ndarray
+    noise: np.ndarray
+    meas_oper: list[list[QGoper]]
+ 
+    def __getitem__(self, pointers: tuple[int, int]) -> MeasRateResult:
+        _row, _col = pointers
+        return MeasRateResult(measrate = self.measrate[_row,_col],
+                              signal = self.signal[_row,_col],
+                              noise = self.noise[_row,_col],
+                              meas_oper = self.meas_oper[_row][_col],
+                              pointers = pointers)
+
+    
 def measurement_rate(HLE: QGhle,
                      pointers: tuple[int,int] = None, 
                      meas_oper: QGoper = None, 
                      meas_mode: int | list[int] = None, 
                      noise_rest: float = 0, 
                      freq: float = 0, 
-                    ):
+                    ) -> MeasRateResult | MeasRateResultArray:
     """
     ---- Procedure ----
     Routine to calculate the steady-state measurement rate between pointer 
@@ -54,14 +112,9 @@ def measurement_rate(HLE: QGhle,
         Frequency at which the measurement is performed, default is zero.
 
     ---- Returns ----
-    meas_rate : float or array
-        Measurement rate for the pair(s) of pointer states.
-    meas_signal : float or array
-        Measurement signal, that is, displacement between pointer states along 
-        the quadrature defined by the measurement operator.
-    meas_noise : float or array
-        Measurement noise along with quadrature defined by the measurement 
-        operator, not including noise_rest.
+    MeasRateResult or MeasRateResultArray
+        Dataclass storing resulant measurement rate for the pair(s) of pointer 
+        states, along with the measurement operator(s).
     """
     if not HLE.isfls:
         raise ValueError("No FLS coupled to system. Measurement rate cannot be defined.")
@@ -75,12 +128,18 @@ def measurement_rate(HLE: QGhle,
         _pointer_A = HLE.output_env(freq = freq, index = pointers[0])
         _pointer_B = HLE.output_env(freq = freq, index = pointers[1])
 
-        (meas_rate, meas_signal, meas_noise) = \
+        (_meas_rate, _meas_signal, _meas_noise, _meas_oper) = \
             _measurement_rate_solver(pointer_A = _pointer_A, 
                                      pointer_B = _pointer_B, 
                                      meas_oper = meas_oper, 
                                      meas_mode = meas_mode, 
                                      noise_rest = noise_rest)
+
+        return MeasRateResult(measrate = _meas_rate,
+                              signal = _meas_signal,
+                              noise = _meas_noise,
+                              meas_oper = _meas_oper,
+                              pointers = pointers)
     
     # --------------------------------------------------------------------------
     # No FLS pointer states is specified, solve for all measurment rates.
@@ -88,23 +147,31 @@ def measurement_rate(HLE: QGhle,
         _row_total = np.prod(HLE.dims_fls[0])
         _col_total = np.prod(HLE.dims_fls[1])
 
-        meas_signal = np.empty([_row_total,_col_total])
-        meas_noise = np.empty([_row_total,_col_total])
-        meas_rate = np.empty([_row_total,_col_total])
+        _meas_signal = np.empty([_row_total,_col_total])
+        _meas_noise = np.empty([_row_total,_col_total])
+        _meas_rate = np.empty([_row_total,_col_total])
+        _meas_oper = [[None for _ in range(0,_col_total)] 
+                       for _ in range(0, _row_total)]
 
         for _row in range(0,_row_total):
             for _col in range(0,_col_total):
                 _pointer_A = HLE.output_env(freq = freq, index = _row)
                 _pointer_B = HLE.output_env(freq = freq, index = _col)
 
-                (meas_rate[_row,_col], meas_signal[_row,_col], meas_noise[_row,_col]) = \
+                (_meas_rate[_row,_col], 
+                 _meas_signal[_row,_col], 
+                 _meas_noise[_row,_col],
+                 _meas_oper[_row][_col]) = \
                     _measurement_rate_solver(pointer_A = _pointer_A,
                                              pointer_B = _pointer_B, 
                                              meas_oper = meas_oper, 
                                              meas_mode = meas_mode, 
                                              noise_rest = noise_rest)
 
-    return meas_rate,meas_signal,meas_noise
+        return MeasRateResultArray(measrate = _meas_rate,
+                                   signal = _meas_signal,
+                                   noise = _meas_noise,
+                                   meas_oper = _meas_oper)
 
 
 def _measurement_rate_solver(pointer_A: QGstate, 
@@ -143,14 +210,17 @@ def _measurement_rate_solver(pointer_A: QGstate,
     # are always zero. The noise is also set to zero if no measurement operator
     # is provided, since there is no optimum quadrature that may be measured.
     if pointer_A == pointer_B:
-        meas_signal = 0
-        meas_rate = 0
+        _meas_signal = 0
+        _meas_rate = 0
         if meas_oper is None:
-            meas_noise = 0
+            _meas_oper = QGoper(data_1st = np.zeros(2*pointer_A.dims_cvs),
+                                dims_cvs = pointer_A.dims_cvs)
+            _meas_noise = 0
         else:
-            _noise_A = meas_oper.data_1st @ pointer_A.data_2nd @ meas_oper.data_1st
-            _noise_B = meas_oper.data_1st @ pointer_B.data_2nd @ meas_oper.data_1st
-            meas_noise = _noise_A.real + _noise_B.real
+            _meas_oper = meas_oper
+            _noise_A = _meas_oper.data_1st @ pointer_A.data_2nd @ _meas_oper.data_1st
+            _noise_B = _meas_oper.data_1st @ pointer_B.data_2nd @ _meas_oper.data_1st
+            _meas_noise = _noise_A.real + _noise_B.real
 
     else:
         # Check if a measurement operator has been provided, and if not pick the
@@ -167,11 +237,11 @@ def _measurement_rate_solver(pointer_A: QGstate,
         _noise_A = _meas_oper.data_1st @ pointer_A.data_2nd @ _meas_oper.data_1st
         _noise_B = _meas_oper.data_1st @ pointer_B.data_2nd @ _meas_oper.data_1st
 
-        meas_signal = (1/4)*np.abs(_signal_A - _signal_B)**2
-        meas_noise = _noise_A.real + _noise_B.real
-        meas_rate = meas_signal/(meas_noise + 2*noise_rest)
+        _meas_signal = np.abs(_signal_A - _signal_B)
+        _meas_noise = _noise_A.real + _noise_B.real
+        _meas_rate = (1/4)*(_meas_signal**2)/(_meas_noise + 2*noise_rest)
 
-    return meas_rate,meas_signal,meas_noise
+    return _meas_rate,_meas_signal,_meas_noise,_meas_oper
 
 
 def _optimum_measurement_operator(pointer_A: QGstate, 
@@ -218,9 +288,9 @@ def _optimum_measurement_operator(pointer_A: QGstate,
         # Return the zero operator and warn the user.
         warnings.warn("No optimal measurement operator found, returning the " \
                       "zero operator. Measurement rate will be ill-defined.")
-        meas_oper = QGoper(dims_cvs = _dims_env)
+        _meas_oper = QGoper(dims_cvs = _dims_env)
     else:
-        meas_oper = QGoper(data_1st = _weights / np.sqrt(np.sum(_weights**2)),
-                           dims_cvs = _dims_env)
+        _meas_oper = QGoper(data_1st = _weights / np.sqrt(np.sum(_weights**2)),
+                            dims_cvs = _dims_env)
     
-    return meas_oper
+    return _meas_oper

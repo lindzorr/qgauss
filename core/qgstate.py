@@ -243,22 +243,18 @@ class QGstate(object):
         return self._data_2nd
     @data_2nd.setter
     def data_2nd(self, data):
-        # Initialize array of covariances/2nd-order cumulants. Uses data_0th 
-        # component to eliminate any CV-cumulants which should not be present 
-        # if the norm is zero:
+        # Initialize array of covariances/2nd-order cumulants. 
+        # Should this use the data_0th component to eliminate any CV-cumulants 
+        # which should not be present if the norm is zero? That is:
         # np.sign(np.abs(data)) or np.where(self.data_0th!=0, 1, 0).
         if isinstance(data, (np.ndarray, list)):
             if np.shape(data) == self.shape_2nd:
                 if self.isfls:
-                    symm = (np.asarray(data, dtype=complex) 
-                            + np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
-                    self._data_2nd = np.einsum("jk,jklm->jklm", 
-                                               np.where(self.data_0th!=0, 1, 0), 
-                                               symm)
+                    self._data_2nd = (np.asarray(data, dtype=complex) 
+                                      + np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
                 else:
-                    symm = (np.asarray(data, dtype=complex) 
-                            + np.asarray(data, dtype=complex).T)/2
-                    self._data_2nd = np.where(self.data_0th!=0, 1, 0)*symm
+                    self._data_2nd = (np.asarray(data, dtype=complex)
+                                      + np.asarray(data, dtype=complex).T)/2
             else:
                 raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")                     
         elif data is None:
@@ -273,17 +269,10 @@ class QGstate(object):
         return self._data_1st
     @data_1st.setter
     def data_1st(self, data):
-        # Initialise array of means/1st-order cumulants. Uses data_0th component 
-        # to eliminate any CV-cumulants which should not be present if the norm 
-        # is zero.
+        # Initialise array of means/1st-order cumulants.
         if isinstance(data, (np.ndarray, list)):
             if np.shape(data) == self.shape_1st:
-                if self.isfls:
-                    self._data_1st = np.einsum("jk,jkl->jkl", 
-                                               np.where(self.data_0th!=0, 1, 0), 
-                                               np.asarray(data, dtype=complex))
-                else:
-                    self._data_1st = np.asarray(data, dtype=complex)
+                self._data_1st = np.asarray(data, dtype=complex)
             else:
                 raise ValueError("Dimensions of data_1st do not agree with stored dimensions.")  
         elif data is None:
@@ -545,9 +534,11 @@ class QGstate(object):
     def fls_to_list(input: QGstate) -> list[QGstate]:
         # Convert QGstate with FLS component to a list of QGstates which 
         # are CVS systems only
+        _row = range(np.prod(input.dims_fls[0]))
+        _col = range(np.prod(input.dims_fls[1]))
         return [[input[qr,qc] 
-                 for qc in range(np.prod(input.dims_fls[0]))]
-                 for qr in range(np.prod(input.dims_fls[1]))]
+                 for qc in _col]
+                 for qr in _row]
     
     @staticmethod
     def list_to_fls(input: QGstate, 
@@ -555,8 +546,8 @@ class QGstate(object):
                    ) -> QGstate:
         # Convert list of QGstates which are CV systems only to a single 
         # QGstate with FLS component
-        _col = range(np.prod(dims_fls[0]))
-        _row = range(np.prod(dims_fls[1]))
+        _row = range(np.prod(dims_fls[0]))
+        _col = range(np.prod(dims_fls[1]))
         return QGstate(data_2nd = np.asarray([[input[qr][qc].data_2nd 
                                                for qc in _col]
                                                for qr in _row]),
@@ -629,7 +620,7 @@ class QGstate(object):
     the CV component is rescaled.
     '''
 
-    def __mul__(self, other: complex) -> QGstate:
+    def __mul__(self, other: numbers.Number | np.number) -> QGstate:
         # Multiplication by a number with self.QGstate on the left
         if isinstance(other, (numbers.Number, np.number)):
             return QGstate(data_2nd = self.data_2nd,
@@ -641,11 +632,11 @@ class QGstate(object):
             raise TypeError("Cannot perform multiplication between QGstate "
             "and type" + type(other).__name__ + ".")
 
-    def __rmul__(self, other: complex) -> QGstate:
+    def __rmul__(self, other: numbers.Number | np.number) -> QGstate:
         # Multiplication by a number with self.QGstate on the right
         return self.__mul__(other)
 
-    def __truediv__(self, other: complex) -> QGstate:
+    def __truediv__(self, other: numbers.Number | np.number) -> QGstate:
         # Division of self.QGstate by a number
         if isinstance(other, (numbers.Number, np.number)): 
             return QGstate(data_2nd = self.data_2nd,
@@ -859,8 +850,8 @@ class QGstate(object):
             elif _data_2nd_axes == 2:
                 pass
             else:
-                raise ValueError("Shape of data_2nd cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_2nd cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_2nd_axes = 0
 
@@ -877,8 +868,8 @@ class QGstate(object):
             elif _data_1st_axes == 1:
                 pass
             else:
-                raise ValueError("Shape of data_1st cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_1st cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_1st_axes = 0
 
@@ -896,8 +887,8 @@ class QGstate(object):
             elif isinstance(data_0th, (numbers.Number, np.number)):
                 _data_0th_axes = 1
             else:
-                raise ValueError("Shape of data_0th cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_0th_axes = 0
 
@@ -926,12 +917,12 @@ class QGstate(object):
                 _len_fls_col = [v for v in _data_shape_fls_col if v != 0][0]
                 return [[_len_fls_row],[_len_fls_col]]
             else:
-                raise ValueError("The FLS dimensions are inconsistent, and" \
-                " so the class cannot be intialized.")
+                raise ValueError("The FLS dimensions are inconsistent, and " \
+                                 "so the class cannot be intialized.")
         # Else, the number of axes of the data input is inconsistent
         else:
-            raise ValueError("Number of axes is inconsistent, and so the" \
-            " class cannot be intialized.")
+            raise ValueError("Number of axes is inconsistent, and so the " \
+                             "class cannot be intialized.")
         
     @staticmethod
     def _set_dims_cvs(data_2nd, data_1st, data_0th) -> int:
@@ -953,8 +944,8 @@ class QGstate(object):
                 _data_2nd_shape_cvs_row = _data_2nd_shape[0]
                 _data_2nd_shape_cvs_col = _data_2nd_shape[1]
             else:
-                raise ValueError("Shape of data_2nd cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_2nd cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_2nd_axes = 0
     
@@ -969,8 +960,8 @@ class QGstate(object):
             elif _data_1st_axes == 1:
                 _data_1st_shape_cvs = _data_1st_shape[0]
             else:
-                raise ValueError("Shape of data_1st cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_1st cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_1st_axes = 0
 
@@ -979,9 +970,12 @@ class QGstate(object):
                 _data_0th_axes = len(np.asarray(data_0th).shape)
             elif isinstance(data_0th, (numbers.Number, np.number)):
                 _data_0th_axes = 1
+            else:
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
             if _data_0th_axes not in (0,1,2):
-                raise ValueError("Shape of data_0th cannot be handled by the" \
-                " QGstate class and should be reformatted.")
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGstate class and should be reformatted.")
         else:
             _data_0th_axes = 0
         
@@ -1004,5 +998,5 @@ class QGstate(object):
             else:
                 raise ValueError("Shape of CVS-component cannot be an odd number.")
         else:
-            raise ValueError("The CVS dimensions are inconsistent, and" \
-                " so the class cannot be intialized.")
+            raise ValueError("The CVS dimensions are inconsistent, and " \
+                             "so the class cannot be intialized.")

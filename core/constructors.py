@@ -7,7 +7,7 @@ from .qgoper import QGoper
 
 __all__ = ['vacuum','thermal','displaced','sm_squeeze','tm_squeeze',
            'qubit_up','qubit_down','qubit_plus','qubit_minus',
-           'qubit_plus','qubit_minus','basis_state',
+           'qubit_left','qubit_right','basis_state',
            'destroy','create','position','momentum',
            'one','identity','identity_cvs','num',
            'qeye','identity_fls','qzero','basis_oper',
@@ -30,11 +30,16 @@ def vacuum(N = 1) -> QGstate:
 def thermal(*nth: float | list[float] | npt.NDArray[float]) -> QGstate:
     # N-mode thermal state, with occupancies "nth"
     if not nth:
-        _nth = 0
+        _nth = np.asarray([0])
     elif len(nth) == 1 and isinstance(nth[0], (numbers.Number, np.number)):
         _nth = np.asarray([nth[0]])
     elif len(nth) == 1 and isinstance(nth[0], list | np.ndarray):
         _nth = np.asarray(nth[0])
+    elif len(nth) > 1:
+        _nth = np.asarray(nth)
+    else:
+        raise ValueError("The function cannot accept arguments with the " \
+                         "provided formatting.")
     return QGstate(data_2nd = np.kron(np.diag(_nth) + (1/2)*np.identity(len(_nth)),
                                       np.identity(2)),
                    dims_cvs = len(_nth))
@@ -48,6 +53,9 @@ def displaced(alpha: complex | list[float] | npt.NDArray[float] = None
         _q, _p = np.real(alpha), np.imag(alpha)
     elif isinstance(alpha, np.ndarray | list) and len(alpha) == 2:
         _q, _p = alpha[0], alpha[1]
+    else:
+        raise ValueError("The function cannot accept arguments with the " \
+                         "provided formatting.")
     return QGstate(data_2nd = (1/2)*np.identity(2),
                    data_1st = np.array([_q,_p]),
                    dims_cvs = 1)
@@ -61,7 +69,9 @@ def sm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
         _r, _t = np.abs(sqz), np.angle(sqz)
     elif isinstance(sqz, np.ndarray | list) and len(sqz) == 2:
         _r, _t = sqz[0], sqz[1]
-
+    else:
+        raise ValueError("The function cannot accept arguments with the " \
+                         "provided formatting.")
     _cov = \
     (1/2)*np.array([[np.cosh(2*_r) + np.cos(_t)*np.sinh(2*_r), -np.sin(_t)*np.sinh(2*_r)],
                     [-np.sin(_t)*np.sinh(2*_r), np.cosh(2*_r) - np.cos(_t)*np.sinh(2*_r)]])
@@ -78,7 +88,9 @@ def tm_squeeze(sqz: complex | list[float] | npt.NDArray[float] = None
         _r, _t = np.abs(sqz), np.angle(sqz)
     elif isinstance(sqz, np.ndarray | list) and len(sqz) == 2:
         _r, _t = sqz[0], sqz[1]
-
+    else:
+        raise ValueError("The function cannot accept arguments with the " \
+                         "provided formatting.")
     _cov = \
     (1/2)*np.array([[np.cosh(2*_r), 0, -np.cos(_t)*np.sinh(2*_r), -np.sin(_t)*np.sinh(2*_r)],
                     [0, np.cosh(2*_r), -np.sin(_t)*np.sinh(2*_r), +np.cos(_t)*np.sinh(2*_r)],
@@ -113,16 +125,20 @@ def qubit_right() -> QGstate:
     return QGstate(data_0th = (1/2)*np.array([[1,1j],[-1j,1]]),
                    dims_fls = [[2],[2]])
 
-def qubit_lefft() -> QGstate:
+def qubit_left() -> QGstate:
     # Density matrix for qubit left-state, (|0>-i|1>)/sqrt(2)
     return QGstate(data_0th = (1/2)*np.array([[1,-1j],[1j,1]]),
                    dims_fls = [[2],[2]])
 
-def basis_state(m: int, N: int = 1) -> QGoper:
+def basis_state(m: int, N: int = 1) -> QGstate:
     # N-by-N state corresponding to the outer product of a single basis vector, 
     # |m><m|. To obey the convention used here for FLs operators, |0><0| has a 
     # one in the lower-right corner, while |N-1><N-1| is in the upper-left 
     # corner of the data matrix.
+    if N is None: 
+        N = m
+    if N < m:
+        raise ValueError("Index of basis state m exceeds dimension of FLS-state N.")
     _data = np.zeros((N, N))
     _data[N-m-1,N-m-1] = 1
     return QGstate(data_0th = _data,
@@ -154,6 +170,8 @@ def destroy(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
+    if N < M:
+        raise ValueError("Mode index M exceeds total number of modes N.")
     _data = np.zeros(2*N, dtype = complex)
     _data[2*M-2:2*M] = np.array([1,1j])/np.sqrt(2)
     return QGoper(data_1st = _data, 
@@ -164,6 +182,8 @@ def create(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
+    if N < M:
+        raise ValueError("Mode index M exceeds total number of modes N.")
     _data = np.zeros(2*N, dtype = complex)
     _data[2*M-2:2*M] = np.array([1,-1j])/np.sqrt(2)
     return QGoper(data_1st = _data, 
@@ -174,6 +194,8 @@ def position(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
+    if N < M:
+        raise ValueError("Mode index M exceeds total number of modes N.")
     _data = np.zeros(2*N, dtype = complex)
     _data[2*M-2:2*M] = np.array([1,0])
     return QGoper(data_1st = _data, 
@@ -184,6 +206,8 @@ def momentum(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
+    if N < M:
+        raise ValueError("Mode index M exceeds total number of modes N.")
     _data = np.zeros(2*N, dtype = complex)
     _data[2*M-2:2*M] = np.array([0,1])
     return QGoper(data_1st = _data, 
@@ -194,6 +218,8 @@ def num(M: int = 1, N: int = None) -> QGoper:
     # continuous-variable system.
     if N is None: 
         N = M
+    if N < M:
+        raise ValueError("Mode index M exceeds total number of modes N.")
     _data = np.zeros((2*N,2*N), dtype = complex)
     _data[2*M-2:2*M,2*M-2:2*M] = np.array([[1,0],[0,1]])
     return QGoper(data_2nd = _data, 
@@ -204,7 +230,7 @@ def identity_fls(dims: int | list[int] | npt.NDArray[int] = 1) -> QGoper:
     # N-by-N identity operator for a finite-level system, where N may an 
     # integer or list of integers
     if isinstance(dims, (np.ndarray, list)):
-        return QGoper(data_0th = np.identity(np.sum(dims)), 
+        return QGoper(data_0th = np.identity(np.prod(dims)), 
                       dims_fls = [dims,dims])
     else:
         return QGoper(data_0th = np.identity(dims), 
@@ -217,7 +243,7 @@ def qeye(N: int = 1) -> QGoper:
 
 def qzero(N: int = 1) -> QGoper:
     # N-by-N null operator for a finite-level system
-    return QGoper(data_0th = np.zeros(N), 
+    return QGoper(data_0th = np.zeros((N,N)), 
                   dims_fls = [[N],[N]])
 
 def basis_oper(m: int, N: int = None) -> QGoper:
@@ -227,6 +253,8 @@ def basis_oper(m: int, N: int = None) -> QGoper:
     # corner of the data matrix.
     if N is None: 
         N = m
+    if N < m:
+        raise ValueError("Index of basis operator m exceeds dimension of FLS-state N.")
     _data = np.zeros((N, N))
     _data[N-m-1,N-m-1] = 1
     return QGoper(data_0th = _data, 
@@ -286,7 +314,7 @@ def jmat(j, comp: str) -> QGoper:
     elif comp == 'tot':
         _data = j*(j+1)*np.identity(int(2*j+1))
     else:
-        raise TypeError("A valid component of the spin must be provided. " \
+        raise ValueError("A valid component of the spin must be provided. " \
         "Choose one of ['+','-','x','y','z','tot'].")
                         
     return QGoper(data_0th = _data,

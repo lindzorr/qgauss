@@ -1,4 +1,9 @@
+from __future__ import annotations
+
 import warnings
+from dataclasses import dataclass, field
+from typing import NamedTuple
+import numbers
 import numpy.typing as npt
 import qgauss
 import numpy as np
@@ -7,7 +12,8 @@ from scipy.linalg import solve,solve_continuous_lyapunov
 from ..core.qgstate import QGstate
 from ..core.qgsuper import QGsuper
 
-__all__ = ['moment_steadystate','backaction_steadystate']
+__all__ = ['moment_steadystate','backaction_steadystate',
+           'BackactionResult','BackactionResultArray']
 
 
 def moment_steadystate(L0: QGsuper,
@@ -48,7 +54,7 @@ def moment_steadystate(L0: QGsuper,
     
     # No FLS component is present, solve the CV system.
     elif not L0.isfls and L0.iscvs:
-        norm,mean,cov = _moment_steadystate_solver(L0, tol)
+        norm,mean,cov = _moment_steadystate_solver(L0, tol=tol)
         rhof = QGstate(data_2nd = cov,
                        data_1st = mean,
                        data_0th = norm,
@@ -63,7 +69,7 @@ def moment_steadystate(L0: QGsuper,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
 
-        norm,mean,cov = _moment_steadystate_solver(L0[_index,_index], tol)
+        norm,mean,cov = _moment_steadystate_solver(L0[_index,_index], tol=tol)
         rhof = QGstate(data_2nd = cov,
                        data_1st = mean,
                        data_0th = norm,
@@ -89,7 +95,7 @@ def moment_steadystate(L0: QGsuper,
                 _index = np.prod(L0.dims_fls[0][0])*_col + _row
             
                 norm[_row,_col],mean[_row,_col],cov[_row,_col] = \
-                    _moment_steadystate_solver(L0[_index,_index], tol)
+                    _moment_steadystate_solver(L0[_index,_index], tol=tol)
                 
         rhof = QGstate(data_2nd = cov,
                        data_1st = mean,
@@ -186,12 +192,192 @@ def _moment_steadystate_solver(L0: QGsuper,
     return norm,mean,cov
 
 
+@dataclass(frozen=True)
+class BackactionComponent:
+    """
+    The components of the backaction computed here are generally complex. This 
+    class splits them into dephasing (real part) and ac-Stark frequency shift 
+    (imaginary part) components. It can handle the backaction on a single
+    element of an FLS-state, along with arrays corresponding to the backaction
+    on multiple elements of an FLS-state.
+    """
+    value: complex | npt.NDArray[complex] = field()
+
+    def __post_init__(self):
+        if isinstance(self.value, BackactionComponent):
+            # Allow re-wrapping an existing instance without double-nesting.
+            object.__setattr__(self, 'value', self.value.value)
+        elif isinstance(self.value, numbers.Number):
+            object.__setattr__(self, 'value', complex(self.value))
+        else:
+            # The case where value is array_like.
+            object.__setattr__(self, 'value', np.asarray(self.value, dtype=complex))
+
+    @property
+    def dephasing(self) -> float:
+        return self.value.real
+
+    @property
+    def freq_shift(self) -> float:
+        return self.value.imag
+
+    def __add__(self, other) -> BackactionComponent:
+        if isinstance(other, BackactionComponent):
+            return BackactionComponent(self.value + other.value)
+        else:
+            return BackactionComponent(self.value + other)
+
+    def __radd__(self, other) -> BackactionComponent: 
+        return self.__add__(other)
+
+    def __sub__(self, other) -> BackactionComponent: 
+        return self.__add__(other.__neg__())
+
+    def __rsub__(self, other) -> BackactionComponent: 
+        return (self.__neg__()).__add__(other)
+
+    def __neg__(self) -> BackactionComponent: 
+        return BackactionComponent(-self.value)
+
+    def __mul__(self, other) -> BackactionComponent:
+        if isinstance(other, (numbers.Number, np.number)):
+            return BackactionComponent(other*self.value)
+        return NotImplemented
+
+    def __rmul__(self, other) -> BackactionComponent: 
+        return self.__mul__(other)
+    
+    def __truediv__(self, other) -> BackactionComponent:
+        if isinstance(other, (numbers.Number, np.number)):
+            return BackactionComponent(self.value/other)
+        return NotImplemented
+        
+    def __repr__(self) -> str:
+        return f"{self.value!r}"
+
+    
+class BackactionComponentTable(NamedTuple):
+    """
+    The backaction is a linear function which can be broken down into several
+    components corresponding to different interactions between the CVS and FLS,
+    along with the nature of the CVS state (whether it is in vacuum or not). 
+    These components are stored here as a namedtuple.
+    """
+    total: BackactionComponent
+    bare: BackactionComponent
+    meas_long: BackactionComponent
+    meas_disp: BackactionComponent
+    para: BackactionComponent
+
+
+@dataclass(frozen=True)
+class BackactionResult:
+    """
+    Dataclass holding the results of a calculation of the backaction on an
+    individual component of an FLS state due to coupling to a CVS system.
+    The individual components are stored as BackactionComponentTable, though
+    various properties are define to allow for easier access by the user. 
+    Calling these will return a number. 
+    For a physical meaing of these components consult the description for the
+    _backaction_component_solver function.
+    """
+    backaction: BackactionComponentTable
+    state: QGstate = field(repr=False)
+    super: QGsuper = field(repr=False)
+    elem: tuple[int, int]
+
+    def __post_init__(self):
+        object.__setattr__(
+            self, 'backaction',
+            BackactionComponentTable(*(BackactionComponent(c) for c in self.backaction)))
+
+    # Property forwarding to allow for easier user access.
+    @property
+    def dephasing(self) -> float: 
+        return self.backaction.total.dephasing
+    @property
+    def freq_shift(self) -> float: 
+        return self.backaction.total.freq_shift
+    @property
+    def total(self) -> BackactionComponent: 
+        return self.backaction.total
+    @property
+    def bare(self) -> BackactionComponent: 
+        return self.backaction.bare
+    @property
+    def meas_long(self) -> BackactionComponent: 
+        return self.backaction.meas_long
+    @property
+    def meas_disp(self) -> BackactionComponent: 
+        return self.backaction.meas_disp
+    @property
+    def meas(self) -> BackactionComponent: 
+        return self.backaction.meas_long + self.backaction.meas_disp
+    @property
+    def para(self) -> BackactionComponent: 
+        return self.backaction.para
+
+
+@dataclass(frozen=True)
+class BackactionResultArray:
+    """
+    Dataclass holding the results of a calculation of the backaction multiple
+    components of an FLS state due to coupling to a CVS system. Includes a
+    getitem method which will return an instance of BackactionResult.
+    The individual components are stored as BackactionComponentTable, though
+    various properties are define to allow for easier access by the user.
+    Calling these will return an array.
+    For a physical meaing of these components consult the description for the
+    _backaction_component_solver function.
+    """
+    backaction: BackactionComponentTable
+    state: QGstate = field(repr=False)
+    super: QGsuper = field(repr=False)
+
+    def __post_init__(self):
+        object.__setattr__(
+            self, 'backaction',
+            BackactionComponentTable(*(BackactionComponent(c) for c in self.backaction)))
+
+    # Property forwarding to allow for easier user access.
+    @property
+    def dephasing(self) -> float: 
+        return self.backaction.total.dephasing
+    @property
+    def freq_shift(self) -> float: 
+        return self.backaction.total.freq_shift
+    @property
+    def total(self) -> BackactionComponent: 
+        return self.backaction.total
+    @property
+    def bare(self) -> BackactionComponent: 
+        return self.backaction.bare
+    @property
+    def meas_long(self) -> BackactionComponent: 
+        return self.backaction.meas_long
+    @property
+    def meas_disp(self) -> BackactionComponent: 
+        return self.backaction.meas_disp
+    @property
+    def meas(self) -> BackactionComponent: 
+        return self.backaction.meas_long + self.backaction.meas_disp
+    @property
+    def para(self) -> BackactionComponent: 
+        return self.backaction.para
+
+    def __getitem__(self, elem: tuple[int, int]) -> BackactionResult:
+        _row, _col = elem
+        _ba_elem = BackactionComponentTable(*(c[_row,_col] for c in self.backaction))
+        return BackactionResult(backaction = _ba_elem,
+                                state = self.state[_row,_col],
+                                super = self.super[_row,_col],
+                                elem = elem)
+
+
 def backaction_steadystate(L0: QGsuper,
                            elem: tuple[int,int] = None,
                            tol: float = qgauss.settings.atol
-                          ) -> tuple[complex,complex,complex,complex] | \
-                           tuple[npt.NDArray[complex],npt.NDArray[complex],
-                                 npt.NDArray[complex],npt.NDArray[complex]] :
+                          ) -> BackactionResult | BackactionResultArray :
     """
     ---- Procedure ----
     Steady-state solver for the backaction rates of a CV system on a 
@@ -218,20 +404,11 @@ def backaction_steadystate(L0: QGsuper,
         Parts of numbers below this tolerance value are set to zero.
 
     ---- Returns ----
-    ba_total : complex or array[complex]
-        Steady-state total dephasing and frequency shift.
-    ba_bare : complex or array[complex]
-        Steady-state parasitic dephasing and frequency shift. Includes 
-        components from the innate FLS dynamics as well backation from the 
-        CVS state which are independent of the first and second moments.
-    ba_meas_ind : complex or array[complex]
-        Steady-state measurement induced dephasing and frequency shift. This is 
-        the component dependent on the displacement of the continuous variable 
-        system.
-    ba_para : complex or array[complex]
-        Steady-state parasitic dephasing and frequency shift. The dephasing part 
-        of this components arises when the CVS state has variances above vacuum, 
-        while the frequency shift is present even for the vacuum shift.
+    BackactionResult | BackactionResultArray
+        Dataclass storing resulant backaction dephasing rates and frequency
+        shifts, either for the individual elements of the FLS state matrix or 
+        the FLS state in its entirety, along with the QGsuper and QGstate used 
+        to compute these quantities.
     """
     # --------------------------------------------------------------------------
     # No CVS or FLS component is present, raise error.
@@ -246,8 +423,13 @@ def backaction_steadystate(L0: QGsuper,
     
     # No FLS component is present, solve the CV system.
     elif not L0.isfls and L0.iscvs:
-        ba_total,ba_bare,ba_meas_ind,ba_para = \
-            _backaction_steadystate_solver(L0, tol)
+        rhof = moment_steadystate(L0, tol=tol)
+        ba_table = _backaction_component_solver(L0, rhof)
+
+        return BackactionResult(backaction = BackactionComponentTable(*ba_table),
+                                state = rhof,
+                                super = L0,
+                                elem = elem)
         
     # --------------------------------------------------------------------------
     # Element of the FLS state is specified, solve the corresponding CV component
@@ -258,8 +440,14 @@ def backaction_steadystate(L0: QGsuper,
             warnings.warn("Evolution of the CV system is not Gaussian. " \
             "Terms which violate this assumption will be ignored.")
 
-        ba_total,ba_bare,ba_meas_ind,ba_para = \
-            _backaction_steadystate_solver(L0[_index,_index], tol)
+        _L0_index = L0[_index, _index]
+        rhof = moment_steadystate(_L0_index, tol=tol)
+        ba_table = _backaction_component_solver(_L0_index, rhof)
+
+        return BackactionResult(backaction = BackactionComponentTable(*ba_table),
+                                state = rhof,
+                                super = _L0_index,
+                                elem = elem)
         
     # --------------------------------------------------------------------------
     # No element of the FLS state is specified, solve for all components.
@@ -271,64 +459,95 @@ def backaction_steadystate(L0: QGsuper,
         _fls_row = np.prod(L0.dims_fls[0][0])
         _fls_col = np.prod(L0.dims_fls[0][1])
 
-        ba_total = np.empty([_fls_row,_fls_col], dtype=complex)
-        ba_bare = np.empty([_fls_row,_fls_col], dtype=complex)
-        ba_meas_ind = np.empty([_fls_row,_fls_col], dtype=complex)
-        ba_para = np.empty([_fls_row,_fls_col], dtype=complex)
+        rhof = moment_steadystate(L0, tol=tol)
+        _ba_total = np.empty([_fls_row,_fls_col], dtype=complex)
+        _ba_bare = np.empty([_fls_row,_fls_col], dtype=complex)
+        _ba_meas_long = np.empty([_fls_row,_fls_col], dtype=complex)
+        _ba_meas_disp = np.empty([_fls_row,_fls_col], dtype=complex)
+        _ba_para = np.empty([_fls_row,_fls_col], dtype=complex)
 
         for _row in range(0,_fls_row):
-            for _col in range(0,_fls_col): 
+            for _col in range(0,_fls_col):
                 _index = np.prod(L0.dims_fls[0][0])*_col + _row
-            
-                (ba_total[_row,_col], ba_bare[_row,_col], 
-                 ba_meas_ind[_row,_col], ba_para[_row,_col]) = \
-                    _backaction_steadystate_solver(L0[_index,_index], tol)
 
-    return ba_total,ba_bare,ba_meas_ind,ba_para
+                (_ba_total[_row,_col], 
+                 _ba_bare[_row,_col], 
+                 _ba_meas_long[_row,_col],
+                 _ba_meas_disp[_row,_col], 
+                 _ba_para[_row,_col]) = \
+                _backaction_component_solver(L0[_index,_index],
+                                             rhof[_row,_col])
+                
+        ba_table = BackactionComponentTable(_ba_total,
+                                            _ba_bare,
+                                            _ba_meas_long,
+                                            _ba_meas_disp,
+                                            _ba_para)
+        
+        return BackactionResultArray(backaction = ba_table,
+                                     state = rhof,
+                                     super = L0)
 
 
-def _backaction_steadystate_solver(L0: QGsuper,
-                                   tol: float
-                                  ) -> tuple[complex,complex,complex,complex]:
+def _backaction_component_solver(L0: QGsuper,
+                                 rho: QGstate
+                                ) -> tuple[complex,complex,complex,complex,complex]:
     """
     The backaction on an operator ρ is defined as tr[ρ] = exp[-v]. The 
     backaction rate is then extracted from dv/dt, defined by
         dv/dt = G + μ.D + (1/2)*μ.B.μ + (1/2)*trace[B.Σ]
     where Σ and μ are the 2nd and 1st central moments of ρ, respectively. The 
-    elements B,D,G are extracted from the L0 Liouvillian with governs the 
-    dynamics of ρ. The dephasing rate and frequency shift correspond to the real 
-    and imaginary parts of 'v', respectively. The backaction may be broken into 
-    bare/innate 'ba_bare', measurement induced 'ba_meas_ind', and parasitic 
+    elements B,D,G are extracted from the Wigner representation of some 
+    superoperator acting on the Wigner representation of ρ, denoted W(ρ), and
+    correspond to the following elements of the full phase-space PDE:
+        B_jk*r_j*r_k*W(ρ) : second order in the quadrature variables
+        D_j*r_j*W(ρ)      : first order in the quadrature variables
+        G*W(ρ)            : zeroth order/constant in the quadrature variables
+    The dephasing rate and frequency shift correspond to the real and imaginary 
+    parts of 'v', respectively. The backaction may be broken into bare/innate 
+    'ba_bare', measurement induced component from logintudinal or dispersive 
+    type interactions 'ba_meas_long' and 'ba_meas_disp', and parasitic 
     'ba_para', components:
         bare = G
-        meas_ind = μ.D + (1/2)*μ.B.μ
+        meas_long = μ.D
+        meas_disp = (1/2)*μ.B.μ
         para = (1/2)*trace[B.Σ]
 
     ---- Parameters ----
     L0 : QGsuper
-        System QGsuper whose steady-state is to be solved, and the backaction 
-        extracted. Must be CVS-only.
-    tol : float
-        Set tolerance for the magnitude of real or imaginary parts of numbers. 
-        Parts of numbers below this tolerance value are set to zero.
-    
+        Backaction due to QGsuper on the provided steady-state. Must be CVS-only.
+    rho : QGstate
+        Steady-state intracavity state whose moments are to be used to calculate
+        the backaction. Must be CVS-only. 
+
     ---- Returns ----
     ba_total : complex
+        Total backaction.
     ba_bare : complex
-    ba_meas_ind : complex
+        Bare backation. The dephasing part of this components arises when 
+        the CVS state has variances above vacuum, while the frequency shift is 
+        present even for the vacuum shift. Also may include dephasing and 
+        frequency component innate to the FLS system, and so independent of
+        the moments of the CVS.
+    ba_meas_long : complex
+        Measurement induced backaction from longitudinal interactions. This 
+        component is dependent on the displacement of the CVS.
+    ba_meas_disp : complex
+        Measurement induced backaction from dispersive interactions. This 
+        component is dependent on the displacement of the CVS.
     ba_para : complex
+        Parasitic backaction. This is due to fluctuations above vacuum in the 
+        CVS and so is only dependent on the second moments.
     """
-    # Solve the steady-state of the system evolving under the QGsuper L0.
-    _data = _moment_steadystate_solver(L0, tol)
+    # Generate arrays.
+    _B,_D,_G = L0.wigner_2nd_rr, L0.wigner_1st_r, L0.wigner_0th[0]
+    _mean, _cov = rho.data_1st, rho.data_2nd
 
-    # Generate arrays and calculate the components of the backaction.
-    _B = L0.wigner_2nd_rr
-    _D = L0.wigner_1st_r
-    _G = L0.wigner_0th[0]
-
+    # Calculate the components of the backaction.
     ba_bare = _G
-    ba_meas_ind = _data[1] @ _D + (1/2)*_data[1] @ _B @ _data[1]
-    ba_para = (1/2)*np.trace(_B @ _data[2])
-    ba_total = ba_bare + ba_meas_ind + ba_para
+    ba_meas_long = _mean @ _D
+    ba_meas_disp = (1/2)*(_mean @ _B @ _mean)
+    ba_para = (1/2)*np.trace(_B @ _cov)
+    ba_total = ba_bare + ba_meas_long + ba_meas_disp + ba_para
 
-    return ba_total,ba_bare,ba_meas_ind,ba_para
+    return ba_total,ba_bare,ba_meas_long,ba_meas_disp,ba_para

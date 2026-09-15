@@ -21,14 +21,18 @@ def dissipator(A: QGoper,
 
 
 def coherent(H: QGoper) -> QGsuper:
-    # Lindblad coherent evolution/von Neumann term: -i[H,ρ] = -i(H.ρ - H.ρ)
+    # Lindblad coherent evolution/von Neumann term: -i[H,ρ] = -i(H.ρ - ρ.H)
     return -1j*(spre(H) - spost(H))
 
 
 def lindbladian(H: QGoper = None, 
-                c_ops: list[QGoper]=[]
+                c_ops: list[QGoper] = None
                ) -> QGsuper:
     # Lindblad superoperator, L(ρ) = -i[H,ρ] + Σ_{c_ops} D[c_ops](ρ)
+    if H is None and c_ops is None:
+        raise ValueError("Must provide either H or c_ops.")
+    if c_ops is None:
+        c_ops = []
     if H is not None:
         L = -1j*(spre(H) - spost(H))
     else:
@@ -43,18 +47,21 @@ def lindbladian(H: QGoper = None,
 
 
 def commutator_super(H: QGoper) -> QGsuper:
-    # Commutator superoperator: [H,ρ] = H.ρ - H.ρ
+    # Commutator superoperator: [H,ρ] = H.ρ - ρ.H
     return (spre(H) - spost(H))
 
 
 def anticommutator_super(H: QGoper) -> QGsuper:
-    # Anti-commutator superoperator: [H,ρ]_+ = H.ρ + H.ρ
+    # Anti-commutator superoperator: [H,ρ]_+ = H.ρ + ρ.H
     return (spre(H) + spost(H))
 
 
 def spost(A: QGoper) -> QGsuper:
     # Superoperator representing post/right-multiplication of state by an operator: ρ.A
     if A.isfls:
+        if A.dims_fls[0] != A.dims_fls[1]:
+            raise ValueError("spre is only defined for square FLS operators " \
+                             "(dims_fls[0] must equal dims_fls[1]).")
         return QGsuper(data_2nd_r = \
                        np.einsum('jpkqyz,plqm->kljmyz',
                                  A.data_2nd[:,np.newaxis,:,np.newaxis,:,:],
@@ -89,6 +96,9 @@ def spost(A: QGoper) -> QGsuper:
 def spre(A: QGoper) -> QGsuper:
     # Superoperator representing pre/left-multiplication of state by an operator: A.ρ
     if A.isfls:
+        if A.dims_fls[0] != A.dims_fls[1]:
+            raise ValueError("spre is only defined for square FLS operators " \
+                             "(dims_fls[0] must equal dims_fls[1]).")
         return QGsuper(data_2nd_l = \
                        np.einsum('jpkq,plqmyz->jlkmyz',
                                  np.identity(np.prod(A.dims_fls[1]))[:,np.newaxis,:,np.newaxis],
@@ -112,7 +122,7 @@ def spre(A: QGoper) -> QGsuper:
                                            np.prod((A.dims_fls[0], A.dims_fls[1]))),
                        dims_cvs = A.dims_cvs,
                        dims_fls = [[A.dims_fls[0], A.dims_fls[1]],
-                                   [A.dims_fls[0], A.dims_fls[1]]])                   
+                                   [A.dims_fls[0], A.dims_fls[1]]])                
     else:
         return QGsuper(data_2nd_l = A.data_2nd,
                        data_1st_l = A.data_1st,
@@ -125,8 +135,8 @@ def sprepost(A: QGoper,
             ) -> QGsuper:
     # Superoperator representing pre/left and post-right-multiplication of a
     # state by an operator: A.ρ.B
-    if (A.dims_cvs != B.dims_cvs) and (A.dims_fls != B.dims_fls).all():
-        raise ValueError("Inputs do not have identical dimensions.")
+    if A.dims_cvs != B.dims_cvs:
+        raise ValueError("Input operators must have identical CVS dimensions.")
 
     if ((A.is2nd and B.is2nd) or
         (A.is2nd and B.is1st) or
@@ -136,6 +146,9 @@ def sprepost(A: QGoper,
                     "quadratic/bilinear order in the quadrature operators.")
 
     if A.isfls and B.isfls:
+        if (A.dims_fls[0] != A.dims_fls[1]) or (B.dims_fls[0] != B.dims_fls[1]):
+            raise ValueError("sprepost is only defined for square FLS operators " \
+                             "(dims_fls[0] must equal dims_fls[1]).")
         return QGsuper(data_2nd_l = \
                        np.einsum('jpkq,plqmyz->kljmyz',
                                  B.data_0th[:,np.newaxis,:,np.newaxis],

@@ -152,7 +152,7 @@ def snr(HLE0: QGhle,
     
     _signal = [np.abs(signal_A[j] - signal_B[j]) for j in range(0,len(tlist))]
     _noise = [(noise_A[j] + noise_B[j]) for j in range(0,len(tlist))]
-    snrsq = np.array([0] + [0.25*(_signal[j]**2/_noise[j]) for j in range(1,len(tlist))])
+    snrsq = np.array([0] + [_signal[j]**2/_noise[j] for j in range(1,len(tlist))])
 
     return snrsq,signal_A,signal_B,noise_A,noise_B
 

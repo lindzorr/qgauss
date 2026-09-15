@@ -229,6 +229,7 @@ class QGoper(object):
                     _asym = (np.asarray(data, dtype=complex) 
                              - np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
                     self._data_2nd = _symm
+                    self._asym_corr = 0
                     if (_asym.size != 0 and 
                         np.any(np.abs(_asym) > qgauss.settings.atol)
                        ):
@@ -241,6 +242,7 @@ class QGoper(object):
                     _asym = (np.asarray(data, dtype=complex) 
                              - np.asarray(data, dtype=complex).T)/2
                     self._data_2nd = _symm
+                    self._asym_corr = np.zeros(self.shape_0th)
                     if (_asym.size != 0 and 
                         np.any(np.abs(_asym) > qgauss.settings.atol)
                        ):
@@ -258,7 +260,7 @@ class QGoper(object):
         self._invalidate(['is2nd','is0th','isherm','isgauss'])
 
     @property
-    def asym_corr(self) -> np.NDArray:
+    def asym_corr(self) -> npt.NDArray:
         return self._asym_corr
 
     @property
@@ -817,8 +819,8 @@ class QGoper(object):
             elif _data_2nd_axes == 2:
                 pass
             else:
-                raise ValueError("Shape of data_2nd cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_2nd cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_2nd_axes = 0
 
@@ -835,8 +837,8 @@ class QGoper(object):
             elif _data_1st_axes == 1:
                 pass
             else:
-                raise ValueError("Shape of data_1st cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_1st cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_1st_axes = 0
 
@@ -854,8 +856,8 @@ class QGoper(object):
             elif isinstance(data_0th, (numbers.Number, np.number)):
                 _data_0th_axes = 1
             else:
-                raise ValueError("Shape of data_0th cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_0th_axes = 0
 
@@ -884,12 +886,12 @@ class QGoper(object):
                 _len_fls_col = [v for v in _data_shape_fls_col if v != 0][0]
                 return [[_len_fls_row],[_len_fls_col]]
             else:
-                raise ValueError("The FLS dimensions are inconsistent, and" \
-                " so the class cannot be intialized.")
+                raise ValueError("The FLS dimensions are inconsistent, and " \
+                                 "so the class cannot be intialized.")
         # Else, the number of axes of the data input is inconsistent
         else:
-            raise ValueError("Number of axes is inconsistent, and so the" \
-            " class cannot be intialized.")
+            raise ValueError("Number of axes is inconsistent, and so the " \
+                             "class cannot be intialized.")
         
     @staticmethod
     def _set_dims_cvs(data_2nd, data_1st, data_0th) -> int:
@@ -911,8 +913,8 @@ class QGoper(object):
                 _data_2nd_shape_cvs_row = _data_2nd_shape[0]
                 _data_2nd_shape_cvs_col = _data_2nd_shape[1]
             else:
-                raise ValueError("Shape of data_2nd cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_2nd cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_2nd_axes = 0
     
@@ -927,8 +929,8 @@ class QGoper(object):
             elif _data_1st_axes == 1:
                 _data_1st_shape_cvs = _data_1st_shape[0]
             else:
-                raise ValueError("Shape of data_1st cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_1st cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_1st_axes = 0
 
@@ -937,9 +939,12 @@ class QGoper(object):
                 _data_0th_axes = len(np.asarray(data_0th).shape)
             elif isinstance(data_0th, (numbers.Number, np.number)):
                 _data_0th_axes = 1
+            else: 
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
             if _data_0th_axes not in (0,1,2):
-                raise ValueError("Shape of data_0th cannot be handled by the" \
-                " QGoper class and should be reformatted.")
+                raise ValueError("Shape of data_0th cannot be handled by the " \
+                                 "QGoper class and should be reformatted.")
         else:
             _data_0th_axes = 0
         
@@ -961,5 +966,5 @@ class QGoper(object):
             else:
                 raise ValueError("Shape of CVS-component cannot be an odd number.")
         else:
-            raise ValueError("The CVS dimensions are inconsistent, and" \
-                " so the class cannot be intialized.")
+            raise ValueError("The CVS dimensions are inconsistent, and " \
+                             "so the class cannot be intialized.")
