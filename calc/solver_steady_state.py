@@ -7,6 +7,7 @@ import numbers
 import numpy.typing as npt
 import qgauss
 import numpy as np
+from numpy.linalg import LinAlgError
 from scipy.linalg import solve,solve_continuous_lyapunov
 
 from ..core.qgstate import QGstate
@@ -149,7 +150,10 @@ def _moment_steadystate_solver(L0: QGsuper,
         #    0 = A.μ + F
         # Σ is the covariance matrix, and μ is an array containing the means.
         if np.any(np.real(np.linalg.eigvals(_A)) >= 0):
-            warnings.warn("System has no steady-state solution.")
+            raise LinAlgError(
+                f"Covariance matrix has no steady-state solution: "
+                f"the dynamical matrix has {np.sum(np.real(np.linalg.eigvals(_A)) >= 0)} "
+                f"unstable eigenevalues.")
 
         cov = solve_continuous_lyapunov(_A,-_C)
         mean = solve(_A,-_F)
@@ -174,9 +178,12 @@ def _moment_steadystate_solver(L0: QGsuper,
         _indices_stable = np.where(np.real(_evals) < 0)[0]
 
         if len(_indices_stable) != 2*L0.dims_cvs:
-            warnings.warn("Covariance matrix has no steady-state solution.")
+            raise LinAlgError(
+                f"Covariance matrix has no steady-state solution: "
+                f"stable subspace requires a dimension of {2 * L0.dims_cvs}, "
+                f"however, the computed dimension is {len(_indices_stable)}.")
 
-        _soln = _evecs[:,_indices_stable]                           
+        _soln = _evecs[:,_indices_stable]                       
         cov = (_soln[2*L0.dims_cvs:4*L0.dims_cvs,0:2*L0.dims_cvs] 
                 @ np.linalg.inv(_soln[0:2*L0.dims_cvs,0:2*L0.dims_cvs]))
         
