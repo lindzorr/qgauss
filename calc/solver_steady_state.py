@@ -276,6 +276,50 @@ class BackactionComponentTable(NamedTuple):
     meas_disp: BackactionComponent
     para: BackactionComponent
 
+    @property
+    def meas(self) -> BackactionComponent: 
+        return self.meas_long + self.meas_disp
+    
+    def __add__(self, other) -> BackactionComponentTable:
+        if isinstance(other, BackactionComponentTable):
+            return BackactionComponentTable(*(a + b for a, b in zip(self, other)))
+        # scalar/complex broadcast: add the same value to every component
+        elif isinstance(other, (numbers.Number, np.number)):
+            return BackactionComponentTable(total = self.total + other,
+                                            bare = self.bare + other,
+                                            meas_long = self.meas_long,
+                                            meas_disp = self.meas_disp,
+                                            para = self.para)
+        else:
+            return NotImplemented
+
+    def __radd__(self, other) -> BackactionComponentTable:
+        return self.__add__(other)
+
+    def __sub__(self, other) -> BackactionComponentTable:
+        return self.__add__(other.__neg__())
+
+    def __rsub__(self, other) -> BackactionComponentTable:
+        return (self.__neg__()).__add__(other)
+    
+    def __neg__(self) -> BackactionComponentTable:
+        return BackactionComponentTable(*(-a for a in self))
+
+    def __mul__(self, other) -> BackactionComponentTable:
+        if isinstance(other, (numbers.Number, np.number)):
+            return BackactionComponentTable(*(a * other for a in self))
+        else:
+            return NotImplemented
+
+    def __rmul__(self, other) -> BackactionComponentTable:
+        return self.__mul__(other)
+
+    def __truediv__(self, other) -> BackactionComponentTable:
+        if isinstance(other, (numbers.Number, np.number)):
+            return BackactionComponentTable(*(a / other for a in self))
+        else:
+            return NotImplemented
+
 
 @dataclass(frozen=True)
 class BackactionResult:
@@ -319,11 +363,11 @@ class BackactionResult:
         return self.backaction.meas_disp
     @property
     def meas(self) -> BackactionComponent: 
-        return self.backaction.meas_long + self.backaction.meas_disp
+        return self.backaction.meas
     @property
     def para(self) -> BackactionComponent: 
         return self.backaction.para
-
+    
 
 @dataclass(frozen=True)
 class BackactionResultArray:
@@ -367,7 +411,7 @@ class BackactionResultArray:
         return self.backaction.meas_disp
     @property
     def meas(self) -> BackactionComponent: 
-        return self.backaction.meas_long + self.backaction.meas_disp
+        return self.backaction.meas
     @property
     def para(self) -> BackactionComponent: 
         return self.backaction.para
