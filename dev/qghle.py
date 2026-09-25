@@ -119,11 +119,11 @@ class QGhle(object):
     symform_sys : array
         Symplectic form acting on either the system CVS modes. The
         generated matrix will have the form:
-            Ω = ⊗_{j=1}^dims_cvs [[0,1],[-1,0]]
+            Ω = I_dims_cvs ⊗ [[0,1],[-1,0]] = ⊕_{j=1}^dims_cvs [[0,1],[-1,0]].
     symform_env : array
         Symplectic form acting on either the bath degrees of freedom. The
         generated matrix will have the form:
-            Ω = ⊗_{j=1}^dims_env [[0,1],[-1,0]]
+            Ω = I_dims_env ⊗ [[0,1],[-1,0]] = ⊕_{j=1}^dims_env [[0,1],[-1,0]].
     lme : QGsuper
         Lindbladian of the main system which is equivalent to the main-system
         dynamics described by the Heisenberg-Langevin equation. Corresponds to
@@ -536,15 +536,9 @@ class QGhle(object):
                 raise ValueError("Cannot perform addition operation between " \
                 "QGhles with different dimensions or input correlations.")
         elif other == 0:
-            return QGhle(h_sys = self.h_sys,
-                         h_sys_env = self.h_sys_env,
-                         input_env = self.input_env,
-                         dims_cvs = self.dims_cvs,
-                         dims_fls = self.dims_fls,
-                         dims_env = self.dims_env)
+            return QGhle(self)
         else:
-            raise TypeError("Cannot perform addition operation between the " \
-            "types QGhle and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __radd__(self, other: QGhle) -> QGhle:
         # Addition with the self.QGhle on the right
@@ -579,20 +573,20 @@ class QGhle(object):
                          dims_fls = self.dims_fls,
                          dims_env = self.dims_env)
         else:
-            raise TypeError("Cannot perform multiplication operation between " \
-            "the types QGhle and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __rmul__(self, other: complex) -> QGhle:
         # Multiplication with self.QGhle on the right
         if isinstance(other, (numbers.Number, np.number)):
             return self.__mul__(other)
         else:
-            raise TypeError("Cannot perform multiplication operation between " \
-            "the types QGhle and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __truediv__(self, other: complex) -> QGhle:
         # Division of self.QGhle by number
         if isinstance(other, (numbers.Number,np.number)):
+            if other == 0:
+                return ZeroDivisionError
             return QGhle(h_sys = self.h_sys/other,
                          h_sys_env = self.h_sys_env/other,
                          input_env = self.input_env,
@@ -600,8 +594,7 @@ class QGhle(object):
                          dims_fls = self.dims_fls,
                          dims_env = self.dims_env)
         else:
-            raise TypeError("Cannot perform division operation between the " \
-            "types QGhle and " + type(other).__name__ + ".")
+            return NotImplemented
         
     ### Assorted Methods ###  
     

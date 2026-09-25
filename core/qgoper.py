@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import numbers
+import operator
+import math
 import numpy.typing as npt
 from functools import cached_property
 import qgauss
@@ -53,7 +55,7 @@ class QGoper(object):
     Due to use of this structure, taking the tensor product works the same as 
     usual on the FLS-level, using a Kronecker product, but is instead a 
     direct-sum on the CVS-level. The elements data_2nd and data_1st therefore 
-	require an extra operation to properly take the tensor.
+    require an extra operation to properly take the tensor.
 
     Although higher order combinations of quadrature operators may simplify to 
     something which is ultimately quadratic/bilinear in order after application 
@@ -120,7 +122,7 @@ class QGoper(object):
         superposition FLS-CVS state.
     symform : array
         Symplectic form, for a system with N = dims_cvs, which has the form: 
-        Ω = ⊗_{j=1}^N [[0,1],[-1,0]].
+            Ω = I_N ⊗ [[0,1],[-1,0]] = ⊕_{j=1}^N [[0,1],[-1,0]].
         
     ---- Methods ----
     add/sub : (QGoper, QGoper | complex) -> QGoper
@@ -168,37 +170,26 @@ class QGoper(object):
         # QGoper as input, copy data.
         if isinstance(inpt, QGoper):
             self._dims_cvs = inpt.dims_cvs
-            self._dims_fls = inpt.dims_fls
-            self._iscvs = inpt.iscvs
-            self._isfls = inpt.isfls
+            self._dims_fls = [list(d) for d in inpt.dims_fls]
 
-            self._asym_corr = inpt._asym_corr
-            self._data_0th = inpt.data_0th
-            self._data_1st = inpt.data_1st
-            self._data_2nd = inpt.data_2nd
+            self._asym_corr = inpt._asym_corr.copy()
+            self._data_0th = inpt.data_0th.copy()
+            self._data_1st = inpt.data_1st.copy()
+            self._data_2nd = inpt.data_2nd.copy()
 
         # In other cases, specific components of QGoper must be arguments.
         elif inpt is None:
-            # Set dimensions of FLS and CV components. Use dimensions if 
-            # specified, otherwise, calculate from input data and check for 
-            # consistency. Also sets the isfls and iscvs properties.
-            if dims_fls is not None:
-                self.dims_fls = dims_fls
-            elif dims_fls is None:
-                self.dims_fls = QGoper._set_dims_fls(data_2nd, data_1st, data_0th)
-
-            if dims_cvs is not None:
-                self.dims_cvs = dims_cvs
-            elif dims_cvs is None:
-                self.dims_cvs = QGoper._set_dims_cvs(data_2nd, data_1st, data_0th)
-
+            # Set dimensions of FLS and CV components using specified dimensions.
+            self._dims_cvs = QGoper._set_dims_cvs(dims_cvs)
+            self._dims_fls = QGoper._set_dims_fls(dims_fls)
+            
             # Set data arrays from input data.
-            self._asym_corr = 0
+            self._asym_corr = np.zeros(self.shape_0th, dtype=complex)
             self.data_0th = data_0th
             self.data_1st = data_1st
             self.data_2nd = data_2nd
 
-            if qgauss.settings.auto_tidyup == True: 
+            if qgauss.settings.auto_tidyup is True: 
                 self.tidyup()
 
         else:
@@ -219,43 +210,33 @@ class QGoper(object):
         # coefficients. Check size is consistent with dims, then split into
         # symmetric and antisymmetric parts. Canonical commutation relations 
         # are applied to the antisymmetric, and added to data_0th.
-        # First, remove asymmetric contribution to data_0th from old data_2nd.
-        self._data_0th += -self._asym_corr
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_2nd:
-                if self.isfls:
-                    _symm = (np.asarray(data, dtype=complex) 
-                             + np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
-                    _asym = (np.asarray(data, dtype=complex) 
-                             - np.asarray(data, dtype=complex).transpose([0,1,3,2]))/2
-                    self._data_2nd = _symm
-                    self._asym_corr = 0
-                    if (_asym.size != 0 and 
-                        np.any(np.abs(_asym) > qgauss.settings.atol)
-                       ):
-                        self._asym_corr = \
-                        (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm', self.symform, _asym))
-                        self._data_0th += self._asym_corr
-                else:
-                    _symm = (np.asarray(data, dtype=complex) 
-                             + np.asarray(data, dtype=complex).T)/2
-                    _asym = (np.asarray(data, dtype=complex) 
-                             - np.asarray(data, dtype=complex).T)/2
-                    self._data_2nd = _symm
-                    self._asym_corr = np.zeros(self.shape_0th)
-                    if (_asym.size != 0 and 
-                        np.any(np.abs(_asym) > qgauss.settings.atol)
-                       ):
-                        self._asym_corr = \
-                        (-1j/4)*np.array([np.einsum('nn',np.einsum('ln,nm->lm', self.symform, _asym))])
-                        self._data_0th += self._asym_corr
-            else:
-                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")          
-        elif data is None:
+        if data is None:
             # If no data is provided, set data_2nd to zero matrix.
-            self._data_2nd = np.zeros(self.shape_2nd, dtype=complex)
+            _symm = np.zeros(self.shape_2nd, dtype=complex)
+            _corr = np.zeros(self.shape_0th, dtype=complex)
+        elif isinstance(data, (np.ndarray, list)):
+            if np.shape(data) != self.shape_2nd:
+                raise ValueError("Dimensions of data_2nd do not agree with stored dimensions.")
+            _corr = np.zeros(self.shape_0th, dtype=complex)
+            _data = np.array(data, dtype=complex)
+            _data_T = _data.transpose([0,1,3,2] if self.isfls else [1,0])
+            _symm = (_data + _data_T)/2
+            _asym = (_data - _data_T)/2
+            if (_asym.size != 0 and
+                np.any(np.abs(_asym) > qgauss.settings.atol)
+                ):
+                if self.isfls:
+                    _corr = \
+                    (-1j/4)*np.einsum('jknn->jk',np.einsum('ln,jknm->jklm',self.symform,_asym))
+                else:
+                    _corr = \
+                    (-1j/4)*np.array([np.einsum('nn',np.einsum('ln,nm->lm',self.symform,_asym))])
         else:
             raise TypeError("data_2nd is not of a supported type: array or list.")
+        # Set data. Remove the constant from the old data_2nd, add the new one.
+        self._data_0th = self._data_0th - self._asym_corr + _corr
+        self._asym_corr = _corr
+        self._data_2nd = _symm
         # Invalidate any dependent cached properties
         self._invalidate(['is2nd','is0th','isherm','isgauss'])
 
@@ -269,36 +250,38 @@ class QGoper(object):
     @data_1st.setter
     def data_1st(self, data):
         # Initialize array of linear-order quadrature operator coefficients.
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_1st:
-                self._data_1st = np.asarray(data, dtype=complex)
-            else:
-                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.") 
-        elif data is None:
+        if data is None:
             self._data_1st = np.zeros(self.shape_1st, dtype=complex)
+        elif isinstance(data, (np.ndarray, list)):
+            if np.shape(data) != self.shape_1st:
+                raise ValueError("Dimensions of data_1st do not agree with stored dimensions.") 
+            self._data_1st = np.array(data, dtype=complex)
         else:
             raise TypeError("data_1st is not of a supported type: array or list.")
         # Invalidate any dependent cached properties
         self._invalidate(['is1st','isherm','isgauss'])
     
     @property
-    def data_0th(self) -> np.NDArray:
+    def data_0th(self) -> npt.NDArray:
         return self._data_0th
     @data_0th.setter
     def data_0th(self, data):
         # Initialize array of zeroth-order quadrature operator coefficients.
-        if isinstance(data, (np.ndarray, list)):
-            if np.shape(data) == self.shape_0th:
-                self._data_0th = np.asarray(data, dtype=complex)
-            else:
-                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif isinstance(data, (numbers.Number, np.number)):
-            if self.shape_0th == (1,):
+        if data is None:
+            self._data_0th = np.zeros(self.shape_0th, dtype=complex)  
+        elif isinstance(data, (np.ndarray, list)):
+            if np.ndim(data) == 0:
+                if self.shape_0th != (1,):
+                    raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
                 self._data_0th = np.array([data], dtype=complex)
-            else:
+            elif np.shape(data) != self.shape_0th:
                 raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
-        elif data is None:
-            self._data_0th = np.zeros(self.shape_0th, dtype=complex)               
+            else:
+                self._data_0th = np.array(data, dtype=complex) 
+        elif isinstance(data, (numbers.Number, np.number)):
+            if self.shape_0th != (1,):
+                raise ValueError("Dimensions of data_0th do not agree with stored dimensions.")
+            self._data_0th = np.array([data], dtype=complex)             
         else:
             raise TypeError("data_0th is not of a supported type: array, list, or number.")
         # Invalidate any dependent cached properties
@@ -325,36 +308,47 @@ class QGoper(object):
     @property
     def dims_cvs(self) -> int:
         return self._dims_cvs
-    @dims_cvs.setter
-    def dims_cvs(self, dims):
-        if isinstance(dims, numbers.Integral):
-            self._dims_cvs = int(dims)
-        elif dims is None:
-            self._dims_cvs = 0
-        else:
-            raise TypeError("dims_cvs is not of a supported type: number.")
-        # Set iscvs property.
-        self.iscvs = dims
+    @staticmethod
+    def _set_dims_cvs(dims) -> int:
+        if dims is None:
+            return 0
+        try:
+            _mode_num = operator.index(dims)
+        except TypeError:
+            raise TypeError("dims_cvs must be an integer or None.") from None
+        if _mode_num < 0:
+            raise ValueError("dims_cvs must be non-negative.")
+        return _mode_num
         
     @property
     def dims_fls(self) -> list[list[int]]:
         return self._dims_fls
-    @dims_fls.setter
-    def dims_fls(self, dims):
-        if isinstance(dims, (np.ndarray, list)):
-            self._dims_fls = list(dims)
-        elif dims is None:
-            self._dims_fls = [[],[]]
-        else:
-            raise TypeError("dims_fls is not of a supported type: array or list.")
-        # Set isfls property.
-        self.isfls = dims
+    @staticmethod
+    def _set_dims_fls(dims) -> list[list[int]]:
+        # Normalise to a [rows, cols] list of ints.
+        if dims is None:
+            return [[], []]
+        try:
+            rows, cols = dims
+            rows = [operator.index(x) for x in rows]
+            cols = [operator.index(x) for x in cols]
+        except (TypeError, ValueError):
+            raise TypeError("dims_fls must have the form [rows, cols] "
+                            "with integer entries.") from None
+        if not rows and not cols:
+            return [[], []]
+        if not rows or not cols:
+            raise ValueError("dims_fls row and column dims must both be empty "
+                             "or both be non-empty.")
+        if min(rows + cols) < 1:
+            raise ValueError("dims_fls entries must be positive integers.")
+        return [rows, cols]
 
     @property
     def shape_2nd(self) -> tuple[int,int,int,int] | tuple[int,int]:
         if self.isfls:
-            return (np.prod(self.dims_fls[0]).item(), 
-                    np.prod(self.dims_fls[1]).item(), 
+            return (math.prod(self.dims_fls[0]), 
+                    math.prod(self.dims_fls[1]), 
                     2*self.dims_cvs, 
                     2*self.dims_cvs)
         else:
@@ -364,8 +358,8 @@ class QGoper(object):
     @property
     def shape_1st(self) -> tuple[int,int,int] | tuple[int]:
         if self.isfls:
-            return (np.prod(self.dims_fls[0]).item(), 
-                    np.prod(self.dims_fls[1]).item(), 
+            return (math.prod(self.dims_fls[0]), 
+                    math.prod(self.dims_fls[1]), 
                     2*self.dims_cvs)
         else:
             return (2*self.dims_cvs,)
@@ -373,30 +367,19 @@ class QGoper(object):
     @property
     def shape_0th(self) -> tuple[int,int] | tuple[int]:
         if self.isfls:
-            return (np.prod(self.dims_fls[0]).item(), 
-                    np.prod(self.dims_fls[1]).item())
+            return (math.prod(self.dims_fls[0]), 
+                    math.prod(self.dims_fls[1]))
         else:
             return (1,)
 
-    @property
+    @cached_property
     def iscvs(self) -> bool:
-        return self._iscvs
-    @iscvs.setter
-    def iscvs(self, dims):
-        if dims == 0 or dims is None:
-            self._iscvs = False
-        else:
-            self._iscvs = True
+        return self._dims_cvs > 0
 
-    @property
+    @cached_property
     def isfls(self) -> bool:
-        return self._isfls     
-    @isfls.setter
-    def isfls(self, dims):
-        if dims == [[],[]] or dims is None:
-            self._isfls = False
-        else:
-            self._isfls = True
+        return (len(self._dims_fls[0]) > 0 and 
+                len(self._dims_fls[1]) > 0)
 
     @cached_property
     def is2nd(self) -> bool:
@@ -433,8 +416,10 @@ class QGoper(object):
             return False
  
     @cached_property 
-    def isgauss(self) -> bool: 
-        if self.iscvs and not self.isfls:
+    def isgauss(self) -> bool:
+        # No FLS component means there is no FLS off-diagonals that could mix Gaussians.
+        # This covers CVS-only (at most quadratic) operators and pure scalars.
+        if not self.isfls:
             return True
         else:
             return all(self._isdiag(row, col)
@@ -472,21 +457,31 @@ class QGoper(object):
     ### Addition and subtraction of QGopers ###
     '''
     Addition and subtraction of QGopers behave in the normal way. The other 
-    object must be another QGoper of the same dimensions, or a number in which 
-    case the number is multiplied by identity and added to data_0th.
+    object must be another QGoper of the same dimensions, or a number. If QGoper
+    has an FLS component, adding a number requires that the FLS dimensions
+    correspond to a square array, in which case the number is multiplied by 
+    identity and added to data_0th. The exception is addition by 0, which is 
+    allowed in all circumstances.
     '''
 
     def __add__(self, other: QGoper | complex) -> QGoper:
         # Addition with QGoper on the left
         if isinstance(other, (numbers.Number, np.number)):
             # If other is number, treat as number times an identity QGoper 
-            # with same dims as self
+            # with same dims as self. Add zero treated separately since it is
+            # valid for any shape, and this is required by sum()
             if self.isfls:
+                if other == 0:
+                    _const = 0
+                elif self.dims_fls[0] == self.dims_fls[1]:
+                    _const = other*np.eye(self.shape_0th[0])
+                else:
+                    raise ValueError("Cannot add a number to a QGoper with "
+                                     "non-square FLS dimensions (dims_fls[0] "
+                                     "!= dims_fls[1]); no identity exists.")
                 return QGoper(data_2nd = self.data_2nd,
                               data_1st = self.data_1st,
-                              data_0th = (self.data_0th 
-                                          + other*np.eye(self.shape_0th[0], 
-                                                         self.shape_0th[1])),
+                              data_0th = self.data_0th + _const,
                               dims_cvs = self.dims_cvs,
                               dims_fls = self.dims_fls)
             else:
@@ -508,8 +503,7 @@ class QGoper(object):
                 raise ValueError("Cannot perform addition operation between " \
                 "QGopers of different dimensions.")
         else:
-            raise TypeError("Cannot perform addition operation between the " \
-            "types QGoper and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __radd__(self, other: QGoper | complex) -> QGoper:
         # Addition with QGoper on the right
@@ -517,7 +511,10 @@ class QGoper(object):
 
     def __sub__(self, other: QGoper | complex) -> QGoper:
         # Subtraction with QGoper on the left
-        return self.__add__(other.__neg__())
+        if isinstance(other, (numbers.Number, np.number, QGoper)):
+            return self.__add__(other.__neg__())
+        else:
+            return NotImplemented
 
     def __rsub__(self, other: QGoper | complex) -> QGoper:
         # Subtraction with QGoper on the right
@@ -552,7 +549,7 @@ class QGoper(object):
         elif isinstance(other, QGoper):
             # If other is a QGoper, must have sames dims as self
             if ((self.dims_cvs == other.dims_cvs) and 
-                (self.dims_fls == other.dims_fls)
+                (self.dims_fls[1] == other.dims_fls[0])
                ):
                 # Check that result is quadratic/bilinear order or less
                 if ((self.is2nd and other.is2nd) or
@@ -580,7 +577,7 @@ class QGoper(object):
                                       data_0th = \
                                       np.einsum('jn,nk->jk', self.data_0th, other.data_0th),
                                       dims_cvs = self.dims_cvs,
-                                      dims_fls = self.dims_fls)
+                                      dims_fls = [self.dims_fls[0],other.dims_fls[1]])
                     elif self.iscvs and not self.isfls:
                         return QGoper(data_2nd = \
                                       (np.einsum('jk,k->jk', self.data_2nd, other.data_0th)
@@ -596,16 +593,17 @@ class QGoper(object):
                     elif not self.iscvs and self.isfls:
                         return QGoper(data_0th = \
                                       np.einsum('jn,nk->jk', self.data_0th, other.data_0th),
-                                      dims_fls = self.dims_fls)
+                                      dims_cvs = self.dims_cvs,
+                                      dims_fls = [self.dims_fls[0],other.dims_fls[1]])
                     else:
-                        return QGoper(dims_cvs = self.dims_cvs,
+                        return QGoper(data_0th = self.data_0th*other.data_0th,
+                                      dims_cvs = self.dims_cvs,
                                       dims_fls = self.dims_fls)
             else:
                 raise ValueError("Cannot perform multiplcation operation " \
                 "between QGopers of different dimensions.")
         else:
-            raise TypeError("Cannot perform multiplication operation between" \
-            " the types QGoper and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __rmul__(self, other: QGoper | complex) -> QGoper:
         # Multiplication with QGoper on the right
@@ -614,39 +612,57 @@ class QGoper(object):
         elif isinstance(other, QGoper):
             return other.__mul__(self)
         else:
-            raise TypeError("Cannot perform multiplication operation between " \
-            "the types QGoper and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __truediv__(self, other: complex) -> QGoper:
         # Division of QGoper by a number
         if isinstance(other, (numbers.Number, np.number)):
+            if other == 0:
+                raise ZeroDivisionError
             return QGoper(data_2nd = self.data_2nd/other,
                           data_1st = self.data_1st/other,
                           data_0th = self.data_0th/other,
                           dims_cvs = self.dims_cvs,
                           dims_fls = self.dims_fls) 
         else:
-            raise TypeError("Cannot perform division operation between the " \
-            "types QGoper and " + type(other).__name__ + ".")
+            return NotImplemented
 
     def __pow__(self, n: int, m = None) -> QGoper:
         # Calculate powers of self.QGoper
         if ((m is not None) or
-            (not isinstance(n, numbers.Integral)) or n < 0
+            (not isinstance(n, numbers.Integral))
            ):
             return NotImplemented
-        elif n == 0:
-            return QGoper(data_0th = np.identity(self.shape_0th[0]),
-                          dims_cvs = self.dims_cvs,
-                          dims_fls = self.dims_fls)
+        if n < 0:
+            raise ValueError("Negative powers of QGoper produces result " \
+            "which is not of quadratic order in quadrature operators.")
+        if not isinstance(n, (int, np.integer)):
+            raise ValueError("Fractional powers of QGoper produces result " \
+            "which is not of quadratic order in quadrature operators.")
+        if self.dims_fls[0] != self.dims_fls[1]:
+            raise TypeError("FLS component must be square to take powers.")
+        if n == 0:
+            if self.isfls:
+                return QGoper(data_0th = np.identity(self.shape_0th[0]),
+                              dims_cvs = self.dims_cvs,
+                              dims_fls = self.dims_fls)
+            else:
+                return QGoper(data_0th = np.array([1]),
+                              dims_cvs = self.dims_cvs,
+                              dims_fls = self.dims_fls)
         elif n == 1:
             return QGoper(inpt = self)
         elif n == 2 and not self.is2nd:
             return self.__mul__(self)
         elif n >= 3 and not self.is2nd and not self.is1st:
-            return QGoper(data_0th = np.linalg.matrix_power(self.data_0th, n),
-                          dims_cvs = self.dims_cvs, 
-                          dims_fls = self.dims_fls)
+            if self.isfls:
+                return QGoper(data_0th = np.linalg.matrix_power(self.data_0th, n),
+                              dims_cvs = self.dims_cvs,
+                              dims_fls = self.dims_fls)
+            else:
+                return QGoper(data_0th = np.power(self.data_0th, n),
+                              dims_cvs = self.dims_cvs,
+                              dims_fls = self.dims_fls)
         else:
             raise ValueError("Power of QGoper produces result which is " \
             "beyond quadratic order in quadrature operators.")
@@ -658,15 +674,15 @@ class QGoper(object):
         if isinstance(other, QGoper):
             same_dims = (self.dims_fls == other.dims_fls and
                          self.dims_cvs == other.dims_cvs)
-            same_elems = (QGoper._iszero(self.data_2nd - other.data_2nd) and
-                          QGoper._iszero(self.data_1st - other.data_1st) and
-                          QGoper._iszero(self.data_0th - other.data_0th))
-            if same_dims and same_elems:
-                return True
-            else:
-                return False
-        else:
-            return False
+            if same_dims:
+                same_elems = \
+                (QGoper._allclose(self.data_2nd, other.data_2nd) and
+                 QGoper._allclose(self.data_1st, other.data_1st) and
+                 QGoper._allclose(self.data_0th, other.data_0th))
+                if same_elems: return True
+                else: return False
+            else: return False
+        else: return False
 
     def __and__(self, other: QGoper) -> QGoper:
         # Returns tensor product of self and other
@@ -686,41 +702,68 @@ class QGoper(object):
                 "Access QGoper data arrays individually if specific elements are required.")     
 
     def drop(self, *args) -> QGoper:
-        # Removes CV modes specified in args from self, and return a new QGoper
-        # List, array, or tuple of indices passed as args, convert to tuple
-        if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple)):
-            args = tuple(args[0])
+        # Removes CV modes specified in args from self, and return a new QGoper.
+        # List, array, or tuple of indices passed as args, convert to set to
+        # remove repeated indices.
+        if not args:
+            return QGoper(self) 
+        if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple, set)):
+            args = set(args[0])
+        else:
+            args = set(args)
+        if min(args) < 1 or max(args) > self.dims_cvs:
+            raise ValueError(f"Mode indices must be integers in the range [1,{self.dims_cvs}].")
         # Generate indices to remove from CVS part
-        _ind = [n for x in args for n in (2*x-2, 2*x-1)]
+        _ind = [n for x in sorted(args) for n in (2*x-2, 2*x-1)]
 
         if self.isfls:
             return QGoper(data_2nd = \
                           np.delete(np.delete(self.data_2nd, _ind, axis=3), _ind, axis=2),
                           data_1st = np.delete(self.data_1st, _ind, axis=2),
                           data_0th = self.data_0th,
-                          dims_fls = self.dims_fls,
-                          dims_cvs = self.dims_cvs - len(args))
+                          dims_cvs = self.dims_cvs - len(args),
+                          dims_fls = self.dims_fls)
         else:
             return QGoper(data_2nd = \
                           np.delete(np.delete(self.data_2nd, _ind, axis=1), _ind, axis=0),
                           data_1st = np.delete(self.data_1st, _ind, axis=0),
                           data_0th = self.data_0th,
                           dims_cvs = self.dims_cvs - len(args))
-
    
     def keep(self, *args) -> QGoper:
         # Keeps CV modes specified in args from self, and return a new QGoper
-        # List, array, or tuple of indices passed as args, convert to tuple
-        if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple)):
-            args = tuple(args[0])
-        # Generate list of modes to remove from CVS part by taking difference
-        # with set of all modes
-        _ind = list(set(range(1,self.dims_cvs+1)) - set(args))
-        return self.drop(_ind)
+        # List, array, or tuple of indices passed as args, convert to set to
+        # remove repeated indices.
+        if not args:
+            return QGoper(data_0th = self.data_0th,
+                          dims_cvs = 0,
+                          dims_fls = self.dims_fls)
+        if len(args) == 1 and isinstance(args[0], (np.ndarray, list, tuple, set)):
+            args = set(args[0])
+        else:
+            args = set(args)
+        if min(args) < 1 or max(args) > self.dims_cvs:
+            raise ValueError(f"Mode indices must be integers in the range [1,{self.dims_cvs}].")
+        # Generate list of modes to keep from CVS part
+        _ind = [n for x in sorted(args) for n in (2*x-2, 2*x-1)]
+
+        if self.isfls:
+            return QGoper(data_2nd = \
+                          np.take(np.take(self.data_2nd, _ind, axis=3), _ind, axis=2),
+                          data_1st = np.take(self.data_1st, _ind, axis=2),
+                          data_0th = self.data_0th,
+                          dims_cvs = len(args),
+                          dims_fls = self.dims_fls)
+        else:
+            return QGoper(data_2nd = \
+                          np.take(np.take(self.data_2nd, _ind, axis=1), _ind, axis=0),
+                          data_1st = np.take(self.data_1st, _ind, axis=0),
+                          data_0th = self.data_0th,
+                          dims_cvs = len(args))
 
     def mode(self, *args) -> QGoper:
         # Alternate naming for the "keep" method
-        return self.keep(args)
+        return self.keep(*args)
         
     def conj(self) -> QGoper:
         # Complex-conjugate of all elements of the QGoper
@@ -754,7 +797,7 @@ class QGoper(object):
                               dims_fls = self.dims_fls,
                               dims_cvs = self.dims_cvs)
             else:
-                raise AttributeError(f"QGoper transpose passed unsuitable argument '{level}'.")
+                raise ValueError(f"QGoper transpose passed unsuitable argument '{level}'.")
         else:
             if level in ('CVS', 'cvs') or level is None:
                 return QGoper(data_2nd = self.data_2nd.T,
@@ -762,11 +805,10 @@ class QGoper(object):
                               data_0th = self.data_0th,
                               dims_cvs = self.dims_cvs)
             elif level in ('FLS', 'fls'):
-                return self
+                return QGoper(self)
             else:
-                raise AttributeError(f"QGoper transpose passed unsuitable argument '{level}'.")
+                raise ValueError(f"QGoper transpose passed unsuitable argument '{level}'.")
             
-
     def dag(self) -> QGoper:
         # Adjoint/complex-conjugate/dagger of QGoper
         if self.isfls:
@@ -782,189 +824,31 @@ class QGoper(object):
                           dims_fls = [self.dims_fls[1], self.dims_fls[0]],
                           dims_cvs = self.dims_cvs)
 
-    def tidyup(self, tol: float = qgauss.settings.tidyup_atol) -> QGoper:
-        # Public void function to remove small magnitude elements
-        # from the data arrays.
-        self.data_2nd.real[np.abs(self.data_2nd.real) < tol] = 0
-        self.data_2nd.imag[np.abs(self.data_2nd.imag) < tol] = 0
-
-        self.data_1st.real[np.abs(self.data_1st.real) < tol] = 0
-        self.data_1st.imag[np.abs(self.data_1st.imag) < tol] = 0
-
-        self.data_0th.real[np.abs(self.data_0th.real) < tol] = 0
-        self.data_0th.imag[np.abs(self.data_0th.imag) < tol] = 0
+    def tidyup(self, tol: float = None) -> QGoper:
+        # Set real/imaginary components with magnitude below tol to zero.
+        # Modifies the operator in place and returns it (allows chaining).
+        if tol is None:
+            tol = qgauss.settings.tidyup_atol
+        for data in (self.data_2nd, self.data_1st, self.data_0th):
+            data.real[np.abs(data.real) < tol] = 0
+            data.imag[np.abs(data.imag) < tol] = 0
+        # Cached flags may have changed now that small elements are zero.
+        self._invalidate(['is2nd', 'is1st', 'is0th', 'isherm', 'isgauss'])
+        return self
 
     @staticmethod
     def _iszero(data: npt.NDArray) -> bool:
         # Checks whether the magnitude of all elements in the array are
         # within tolerance of zero
         return np.all(np.abs(data) < qgauss.settings.atol)
-    
+
     @staticmethod
-    def _set_dims_fls(data_2nd, data_1st, data_0th) -> list[list[int]]:
-        # Static method to extract dimensions of the FLS component of the data 
-        # during class initialization if none are provided. Checks whether the 
-        # shape of the input data is consistent, and returns dims_fls.
-
-        # Determine shape of FLS-component of data_2nd. If no component exists 
-        # or data is None, set shapes to 0. 
-        _data_2nd_shape_fls_row = 0
-        _data_2nd_shape_fls_col = 0
-        if data_2nd is not None:
-            _data_2nd_shape = np.asarray(data_2nd).shape
-            _data_2nd_axes = len(_data_2nd_shape)
-            if _data_2nd_axes == 4:
-                _data_2nd_shape_fls_row = _data_2nd_shape[0]
-                _data_2nd_shape_fls_col = _data_2nd_shape[1]
-            elif _data_2nd_axes == 2:
-                pass
-            else:
-                raise ValueError("Shape of data_2nd cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_2nd_axes = 0
-
-        # Determine shape of FLS-component of data_1st. If no component exists 
-        # or data is None, set shapes to 0. 
-        _data_1st_shape_fls_row = 0
-        _data_1st_shape_fls_col = 0
-        if data_1st is not None:
-            _data_1st_shape = np.asarray(data_1st).shape
-            _data_1st_axes = len(_data_1st_shape)
-            if _data_1st_axes == 3:
-                _data_1st_shape_fls_row = _data_1st_shape[0]
-                _data_1st_shape_fls_col = _data_1st_shape[1]
-            elif _data_1st_axes == 1:
-                pass
-            else:
-                raise ValueError("Shape of data_1st cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_1st_axes = 0
-
-        # Determine shape of FLS-component of data_0th. If no component exists 
-        # or data is None, set shapes to 0. 
-        _data_0th_shape_fls_row = 0
-        _data_0th_shape_fls_col = 0
-        if data_0th is not None:
-            if isinstance(data_0th, (np.ndarray, list)):
-                _data_0th_shape = np.asarray(data_0th).shape
-                _data_0th_axes = len(_data_0th_shape)
-                if _data_0th_axes == 2:
-                    _data_0th_shape_fls_row = _data_0th_shape[0]
-                    _data_0th_shape_fls_col = _data_0th_shape[1]
-            elif isinstance(data_0th, (numbers.Number, np.number)):
-                _data_0th_axes = 1
-            else:
-                raise ValueError("Shape of data_0th cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_0th_axes = 0
-
-        # Check if the data has no FLS component.
-        if (_data_2nd_axes in (0,2) and 
-            _data_1st_axes in (0,1) and
-            _data_0th_axes in (0,1)
-            ):
-            return [[],[]]
-        # Else, check that the data has the correct number of axes.
-        elif (_data_2nd_axes in (0,4) and
-              _data_1st_axes in (0,3) and
-              _data_0th_axes in (0,2)
-             ):
-            # Check that the FLS dimensions are consistent.
-            _data_shape_fls_row = list(set((_data_2nd_shape_fls_row,
-                                            _data_1st_shape_fls_row,
-                                            _data_0th_shape_fls_row,
-                                            0)))
-            _data_shape_fls_col = list(set((_data_2nd_shape_fls_col,
-                                            _data_1st_shape_fls_col,
-                                            _data_0th_shape_fls_col,
-                                            0)))
-            if len(_data_shape_fls_row) == 2 and len(_data_shape_fls_col) == 2:
-                _len_fls_row = [v for v in _data_shape_fls_row if v != 0][0]
-                _len_fls_col = [v for v in _data_shape_fls_col if v != 0][0]
-                return [[_len_fls_row],[_len_fls_col]]
-            else:
-                raise ValueError("The FLS dimensions are inconsistent, and " \
-                                 "so the class cannot be intialized.")
-        # Else, the number of axes of the data input is inconsistent
-        else:
-            raise ValueError("Number of axes is inconsistent, and so the " \
-                             "class cannot be intialized.")
-        
-    @staticmethod
-    def _set_dims_cvs(data_2nd, data_1st, data_0th) -> int:
-        # Static method to extract dimensions of the CVS component of the data 
-        # during class initialization if none are  provided. Checks whether the
-        # shape of the input data is consistent, and returns dims_cvs.
-        
-        # Determine shape of CVS-component of data_2nd. If no component exists
-        # or data is None, set shapes to 0. 
-        _data_2nd_shape_cvs_row = 0
-        _data_2nd_shape_cvs_col = 0
-        if data_2nd is not None:
-            _data_2nd_shape = np.asarray(data_2nd).shape
-            _data_2nd_axes = len(_data_2nd_shape)
-            if _data_2nd_axes == 4:
-                _data_2nd_shape_cvs_row = _data_2nd_shape[2]
-                _data_2nd_shape_cvs_col = _data_2nd_shape[3]
-            elif _data_2nd_axes == 2:
-                _data_2nd_shape_cvs_row = _data_2nd_shape[0]
-                _data_2nd_shape_cvs_col = _data_2nd_shape[1]
-            else:
-                raise ValueError("Shape of data_2nd cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_2nd_axes = 0
-    
-        # Determine shape of CVS-component of data_1st. If no component exists 
-        # or data is None, set shapes to 0. 
-        _data_1st_shape_cvs = 0
-        if data_1st is not None:
-            _data_1st_shape = np.asarray(data_1st).shape
-            _data_1st_axes = len(_data_1st_shape)
-            if _data_1st_axes == 3:
-                _data_1st_shape_cvs = _data_1st_shape[2]
-            elif _data_1st_axes == 1:
-                _data_1st_shape_cvs = _data_1st_shape[0]
-            else:
-                raise ValueError("Shape of data_1st cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_1st_axes = 0
-
-        if data_0th is not None:
-            if isinstance(data_0th, (np.ndarray, list)):
-                _data_0th_axes = len(np.asarray(data_0th).shape)
-            elif isinstance(data_0th, (numbers.Number, np.number)):
-                _data_0th_axes = 1
-            else: 
-                raise ValueError("Shape of data_0th cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-            if _data_0th_axes not in (0,1,2):
-                raise ValueError("Shape of data_0th cannot be handled by the " \
-                                 "QGoper class and should be reformatted.")
-        else:
-            _data_0th_axes = 0
-        
-        # Check if the data has no CVS component.
-        if ((_data_2nd_axes == 0) and 
-            (_data_1st_axes == 0) and 
-            (_data_0th_axes in (0,2))
-           ):
-            return 0
-        # Check that the CVS dimensions are consistent.   
-        _data_shape_cvs = list(set((_data_2nd_shape_cvs_row,
-                                    _data_2nd_shape_cvs_col,
-                                    _data_1st_shape_cvs,
-                                    0)))
-        if len(_data_shape_cvs) == 2:
-            _len_cvs = [v for v in _data_shape_cvs if v != 0][0]
-            if _len_cvs % 2 == 0:
-                return int(_len_cvs / 2)
-            else:
-                raise ValueError("Shape of CVS-component cannot be an odd number.")
-        else:
-            raise ValueError("The CVS dimensions are inconsistent, and " \
-                             "so the class cannot be intialized.")
+    def _allclose(a: npt.NDArray, b: npt.NDArray) -> bool:
+    # True if a and b agree within atol (absolute) + rtol*|b| (relative).
+    # Acts as a wrapper for the numpy function, but also checks shape.
+        a = np.asarray(a)
+        b = np.asarray(b)
+        return a.shape == b.shape and bool(
+            np.allclose(a, b,
+                        atol=qgauss.settings.atol, 
+                        rtol=qgauss.settings.rtol))

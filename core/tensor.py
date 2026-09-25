@@ -1,8 +1,9 @@
-import numpy.typing as npt
+import math
 import numpy as np
 
 from .qgstate import QGstate
 from .qgoper import QGoper
+from ..calc.utilities import fls_size
 
 __all__ = ['tensor']
 
@@ -175,8 +176,8 @@ def _tensor_oper(args) -> QGoper:
                               ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
                               )[:,np.newaxis,:,np.newaxis,:,:],
                        _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                       ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                 np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                       ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                 fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                  2*(_out_dims_cvs + _elm.dims_cvs),
                                  2*(_out_dims_cvs + _elm.dims_cvs))
              + np.einsum("jpkq,plqmyz->jlkmyz",
@@ -184,8 +185,8 @@ def _tensor_oper(args) -> QGoper:
                          np.pad(_elm.data_2nd,
                                 ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
                                 )[np.newaxis,:,np.newaxis,:,:,:]
-                        ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                  np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                        ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                  fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                   2*(_out_dims_cvs + _elm.dims_cvs),
                                   2*(_out_dims_cvs + _elm.dims_cvs))
              + 2.*np.einsum("jpkqy,plqmz->jlkmyz",
@@ -195,8 +196,8 @@ def _tensor_oper(args) -> QGoper:
                             np.pad(_elm.data_1st,
                                    ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
                                    )[np.newaxis,:,np.newaxis,:,:]
-                           ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                     np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                           ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                     fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                      2*(_out_dims_cvs + _elm.dims_cvs),
                                      2*(_out_dims_cvs + _elm.dims_cvs))
             )
@@ -206,24 +207,24 @@ def _tensor_oper(args) -> QGoper:
                               ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
                               )[:,np.newaxis,:,np.newaxis,:],
                               _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                              ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                        fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                         2*(_out_dims_cvs + _elm.dims_cvs))
              + np.einsum("jpkq,plqmz->jlkmz",
                          _out_data_0th[:,np.newaxis,:,np.newaxis],
                          np.pad(_elm.data_1st,
                                 ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
                                 )[np.newaxis,:,np.newaxis,:,:]
-                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                          fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                           2*(_out_dims_cvs + _elm.dims_cvs))
             )
             _out_data_0th = \
             np.einsum("jpkq,plqm->jlkm",
                       _out_data_0th[:,np.newaxis,:,np.newaxis],
                       _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
+                      ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                fls_size(_out_dims_fls[1], _elm.dims_fls[1]))
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = [_out_dims_fls[0] + _elm.dims_fls[0],
                              _out_dims_fls[1] + _elm.dims_fls[1]]
@@ -329,8 +330,8 @@ def _tensor_state(args) -> QGstate:
                               ((0, 0), (0, 0), (0, 2*_elm.dims_cvs), (0, 2*_elm.dims_cvs))
                               )[:,np.newaxis,:,np.newaxis,:,:],
                               np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
-                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                              ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                        fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                         2*(_out_dims_cvs + _elm.dims_cvs),
                                         2*(_out_dims_cvs + _elm.dims_cvs))
              + np.einsum("jpkq,plqmyz->jlkmyz",
@@ -338,8 +339,8 @@ def _tensor_state(args) -> QGstate:
                          np.pad(_elm.data_2nd,
                                 ((0, 0), (0, 0), (2*_out_dims_cvs, 0), (2*_out_dims_cvs, 0))
                                 )[np.newaxis,:,np.newaxis,:,:,:]
-                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                          fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                           2*(_out_dims_cvs + _elm.dims_cvs),
                                           2*(_out_dims_cvs + _elm.dims_cvs))
             )
@@ -349,24 +350,24 @@ def _tensor_state(args) -> QGstate:
                               ((0, 0), (0, 0), (0, 2*_elm.dims_cvs))
                               )[:,np.newaxis,:,np.newaxis,:],
                               np.where(_elm.data_0th != 0, 1, 0)[np.newaxis,:,np.newaxis,:]
-                              ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                        np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                              ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                        fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                         2*(_out_dims_cvs + _elm.dims_cvs))
              + np.einsum("jpkq,plqmz->jlkmz",
                          np.where(_out_data_0th != 0, 1, 0)[:,np.newaxis,:,np.newaxis],
                          np.pad(_elm.data_1st,
                                 ((0, 0), (0, 0), (2*_out_dims_cvs, 0))
                                 )[np.newaxis,:,np.newaxis,:,:]
-                                ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                          np.prod((_out_dims_fls[1], _elm.dims_fls[1])),
+                                ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                          fls_size(_out_dims_fls[1], _elm.dims_fls[1]),
                                           2*(_out_dims_cvs + _elm.dims_cvs))
             )
             _out_data_0th = \
             np.einsum("jpkq,plqm->jlkm",
                       _out_data_0th[:,np.newaxis,:,np.newaxis],
                       _elm.data_0th[np.newaxis,:,np.newaxis,:]
-                      ).reshape(np.prod((_out_dims_fls[0], _elm.dims_fls[0])),
-                                np.prod((_out_dims_fls[1], _elm.dims_fls[1])))
+                      ).reshape(fls_size(_out_dims_fls[0], _elm.dims_fls[0]),
+                                fls_size(_out_dims_fls[1], _elm.dims_fls[1]))
             _out_dims_cvs += _elm.dims_cvs
             _out_dims_fls = [_out_dims_fls[0] + _elm.dims_fls[0],
                              _out_dims_fls[1] + _elm.dims_fls[1]]

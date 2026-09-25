@@ -99,7 +99,7 @@ def commutator(A: QGoper,
     """
     # Check that state and oper have the same internal structure/dimensions
     if (A.dims_fls != B.dims_fls) or (A.dims_cvs != B.dims_cvs):
-        raise ValueError("Operators have different dimensions.")
+        raise ValueError("State and operator must have identical dimensions.")
     
     # Apply for commutation relations for pairs of FLS-only or 
     # CVS-only operators
@@ -131,7 +131,8 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
     operator, or superoperator, equivalent to a unitary operator. The input can 
     be a mixed CVS/FLS object, but the generators must be CVS-only operators. 
     For a symplectic-affine transformation with generator 
-    X = ½r.X(2).r + r.X(1), the quadrature operators will transform as:
+        X = ½r.X(2).r + r.X(1), 
+    the quadrature operators will transform as:
         r -> U*.r.U = S.r + d  where  U = exp[-i*X], and 
         S = exp[Ω.X(2)], d(t) = (1/Ω.X(2)).(exp[t*Ω.X(2)] - id).(Ω.X(1)).
     For an operator Q = ½r.Q(2).r + r.Q(1) + Q(0), this transformation will 
@@ -189,8 +190,8 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
 
         return QGstate(data_2nd = _out_data_2nd,
                        data_1st = _out_data_1st,
-                       data_0th = input.data_0th,
-                       dims_fls = input.dims_fls,
+                       data_0th = input.data_0th.copy(),
+                       dims_fls = input.dims_fls.copy(),
                        dims_cvs = input.dims_cvs)
 
     elif isinstance(input, QGoper):
@@ -220,7 +221,7 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
         return QGoper(data_2nd = _out_data_2nd,
                       data_1st = _out_data_1st,
                       data_0th = _out_data_0th,
-                      dims_fls = input.dims_fls,
+                      dims_fls = input.dims_fls.copy(),
                       dims_cvs = input.dims_cvs)
     
     elif isinstance(input, QGsuper):
@@ -279,7 +280,7 @@ def ASp_transform(input: QGstate | QGoper | QGsuper,
                        data_1st_l = _out_data_1st_l,
                        data_1st_r = _out_data_1st_r,
                        data_0th = _out_data_0th,
-                       dims_fls = input.dims_fls,
+                       dims_fls = input.dims_fls.copy(),
                        dims_cvs = input.dims_cvs)
     else:
         raise TypeError("Argument with an unsupported type passed to function.")

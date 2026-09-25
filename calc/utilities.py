@@ -1,9 +1,11 @@
+import math
 import numpy.typing as npt
 import qgauss
 import numpy as np
 from scipy.linalg import expm
 
-__all__ = ['symplectic_form','expm_int','trim',
+__all__ = ['symplectic_form','expm_int',
+           'fls_size','trim','trim_abs',
            'mat_to_vec','vec_to_mat',
            'symmat_to_vec','vec_to_symmat']
 
@@ -42,6 +44,12 @@ def expm_int(X: npt.NDArray,
     return expm(np.block([np.block([[X],[np.zeros((_n*k,_n))]]),
                           np.eye(_n*(k+1),_n*k)])
                 )[0:_n,_n*k:_n*(k+1)]
+
+
+def fls_size(*dims_lists) -> int:
+    # Total FLS dimension of a (possibly ragged) concatenation of dims lists,
+    # e.g. _fls_size(A.dims_fls[0], B.dims_fls[1]).
+    return math.prod(d for dims in dims_lists for d in dims)
 
 
 def trim(input: npt.NDArray, 

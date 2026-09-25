@@ -15,7 +15,10 @@ solutions to time-dependent problems.
 ###############
 ##  QGstate  ##
 ###############
-# For convenience, should it possible to switch between "Quadrature" and "Ladder" bases for the CVSS component?
+# Determine how what addition and multiplication should mean. It is both useful to define operations that act on
+moments and those that follow the logic of acting on Gaussian states. Creating a way to handle superpositions of
+Gaussian states may also be useful.
+# For convenience, should it possible to switch between "Quadrature" and "Ladder" bases for the CVS component?
 # Maybe also allow for different quadrature bases to be chosen. This would require that the symplectic form now be a
 a property which must be set. An argument against this is that methods like the partial trace for the CV component 
 become annoying to implement since quadratures for the same mode are no longer neighbours.
@@ -28,9 +31,6 @@ ptrace() Traces over selected mode indices listed in array. Only computable for 
 # Features to add to multiplication
     - Multiplication of pure FLS states, equivalent to bare matrix multiplication
     - Multiplication of pure CVSS states, equivalent to Moyal product between Gaussian Wigner distributions
-# Figure out how to better handle multiplying a CVS-only QGstate by negative numbers. Possible workaround is 
-to not use the zeroth-order cumulant, but instead the zeroth-order moment/total mass. This may be a good reason to 
-combine data_0th and data_fls.
 	
 	
 

@@ -256,6 +256,8 @@ class BackactionComponent:
     
     def __truediv__(self, other) -> BackactionComponent:
         if isinstance(other, (numbers.Number, np.number)):
+            if other == 0:
+                return ZeroDivisionError
             return BackactionComponent(self.value/other)
         return NotImplemented
         
@@ -316,6 +318,8 @@ class BackactionComponentTable(NamedTuple):
 
     def __truediv__(self, other) -> BackactionComponentTable:
         if isinstance(other, (numbers.Number, np.number)):
+            if other == 0:
+                return ZeroDivisionError
             return BackactionComponentTable(*(a / other for a in self))
         else:
             return NotImplemented
